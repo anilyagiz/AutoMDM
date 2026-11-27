@@ -1,0 +1,22 @@
+assets by path [1m[32micons/*.png[39m[22m 3.7 MiB 1140 assets
+assets by path [1m[32m*.js[39m[22m 6.47 MiB 34 assets
+assets by path [1m[32m*.png[39m[22m 4.6 MiB 20 assets
+assets by path [1m[32m*.woff[39m[22m 214 KiB 7 assets
+assets by path [1m[32m*.woff2[39m[22m 458 KiB 5 assets
+assets by path [1m[32m*.css[39m[22m 425 KiB 2 assets
+assets by path [1m[32m*.ttf[39m[22m 170 KiB
+  asset [1m[32mSource-Code-Pro-Regular@d5b638b6e0d51dc89117.ttf[39m[22m 138 KiB [1m[32m[emitted][39m[22m [1m[32m[immutable][39m[22m [from: assets/fonts/source-code-pro/Source-Code-Pro-Regular.ttf]
+  asset [1m[32mSource-Code-Pro-Bold@139adb28c01e4d2213a5.ttf[39m[22m 32.1 KiB [1m[32m[emitted][39m[22m [1m[32m[immutable][39m[22m [from: assets/fonts/source-code-pro/Source-Code-Pro-Bold.ttf]
+assets by path [1m[32m*.eot[39m[22m 31.8 KiB
+  asset [1m[32mSource-Code-Pro-Regular@f9230d64462e648d6e8f.eot[39m[22m 16 KiB [1m[32m[emitted][39m[22m [1m[32m[immutable][39m[22m [from: assets/fonts/source-code-pro/Source-Code-Pro-Regular.eot]
+  asset [1m[32mSource-Code-Pro-Bold@76dad6a5aeb61e149514.eot[39m[22m 15.8 KiB [1m[32m[emitted][39m[22m [1m[32m[immutable][39m[22m [from: assets/fonts/source-code-pro/Source-Code-Pro-Bold.eot]
+asset [1m[33mmdm-migration-video@1895a73b900b9b0aa0dd.mp4[39m[22m [1m[33m8.56 MiB[39m[22m [1m[32m[emitted][39m[22m [1m[32m[immutable][39m[22m [from: frontend/assets/videos/mdm-migration-video.mp4] [1m[33m[big][39m[22m (auxiliary name: admin)
+asset [1m[32m../frontend/templates/react.tmpl[39m[22m 921 bytes [1m[32m[emitted][39m[22m
+Entrypoint [1mbundle[39m[22m [1m[33m[big][39m[22m 3.12 MiB (3.98 MiB) = [1m[32mbundle-f3b2540ddef2d58a7549.css[39m[22m 421 KiB [1m[32mbundle-e18fdd73aaa46035ad6d.js[39m[22m 2.71 MiB 1142 auxiliary assets
+orphan modules 8.64 MiB (javascript) 874 KiB (asset) 3.07 KiB (runtime) [1m[33m[orphan][39m[22m 2733 modules
+runtime modules 11.5 KiB 17 modules
+cacheable modules 16.9 MiB (asset) 13.9 MiB (javascript) 426 KiB (css/mini-extract)
+  modules by path [1m./frontend/[39m[22m 16.9 MiB (asset) 6.99 MiB (javascript) 417 KiB (css/mini-extract) 1598 modules
+  modules by path [1m./node_modules/[39m[22m 6.86 MiB (javascript) 9.65 KiB (css/mini-extract) 1013 modules
+webpack 5.105.0 compiled [1m[32msuccessfully[39m[22m in 32210 ms
+exit=0
