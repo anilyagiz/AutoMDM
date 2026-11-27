@@ -529,7 +529,7 @@ func (s *integrationSSOTestSuite) TestSSOLoginSAMLResponseTampered() {
 	require.NoError(t, json.NewDecoder(res.Body).Decode(&resIni))
 	require.NoError(t, resIni.Error())
 	samlResponse := s.completeSAMLLogin(client, resIni.URL, idpUsername, "user123#")
-	samlResponseDecoded, err := base64.RawStdEncoding.DecodeString(samlResponse)
+	samlResponseDecoded, err := base64.RawStdEncoding.DecodeString(strings.TrimRight(samlResponse, "=")) // padded or not, depending on its length
 	require.NoError(t, err)
 
 	tamperedSAMLResponseDecoded := strings.ReplaceAll(string(samlResponseDecoded), idpUsername, "sso_us3r2")

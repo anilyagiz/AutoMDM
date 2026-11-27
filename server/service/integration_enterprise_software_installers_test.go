@@ -3789,7 +3789,7 @@ func (s *integrationEnterpriseTestSuite) TestAutomaticPolicies() {
 	}
 	require.Equal(t, "[Install software] ruby (deb)", ts.Policies[1].Name)
 	require.Equal(t, "[Install software] ruby (rpm)", ts.Policies[2].Name)
-	require.Equal(t, "[Install software] AutoMDM osquery (msi)", ts.Policies[3].Name)
+	require.Equal(t, "[Install software] Fleet osquery (msi)", ts.Policies[3].Name)
 
 	// Upload dummy_installer.pkg to "No team" with automatic policy.
 	s.uploadSoftwareInstaller(t, &automdm.UploadSoftwareInstallerPayload{

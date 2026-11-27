@@ -976,13 +976,14 @@ func (s *integrationEnterpriseTestSuite) TestSetupExperienceWindowsWithSoftware(
 
 	// Add a msi package to the team.
 	msiPackage := &automdm.UploadSoftwareInstallerPayload{
+		// automdm-osquery.msi is a test installer that Fleet built, so its product name is "Fleet osquery".
 		InstallScript: "install script for automdm-osquery.msi",
 		Filename:      "automdm-osquery.msi",
-		Title:         "AutoMDM osquery",
+		Title:         "Fleet osquery",
 		TeamID:        &team.ID,
 	}
 	s.uploadSoftwareInstaller(t, msiPackage, http.StatusOK, "")
-	msiPackageTitleID := getSoftwareTitleID(t, s.ds, "AutoMDM osquery", "programs")
+	msiPackageTitleID := getSoftwareTitleID(t, s.ds, "Fleet osquery", "programs")
 	// Add a exe installer to the team.
 	exePackage := &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:   "install script for hello-world-installer.exe",
@@ -1036,7 +1037,7 @@ func (s *integrationEnterpriseTestSuite) TestSetupExperienceWindowsWithSoftware(
 		"order_direction", "asc",
 	)
 	require.Len(t, respGetSetupExperience.SoftwareTitles, 2)
-	require.Equal(t, "AutoMDM osquery", respGetSetupExperience.SoftwareTitles[0].Name)
+	require.Equal(t, "Fleet osquery", respGetSetupExperience.SoftwareTitles[0].Name)
 	require.NotNil(t, respGetSetupExperience.SoftwareTitles[0].SoftwarePackage)
 	require.NotNil(t, respGetSetupExperience.SoftwareTitles[0].SoftwarePackage.InstallDuringSetup)
 	require.True(t, *respGetSetupExperience.SoftwareTitles[0].SoftwarePackage.InstallDuringSetup)
@@ -1115,7 +1116,7 @@ func (s *integrationEnterpriseTestSuite) TestSetupExperienceWindowsWithSoftware(
 		sort.Slice(getDeviceStatusResponse.Results.Software, func(i, j int) bool {
 			return getDeviceStatusResponse.Results.Software[i].Name < getDeviceStatusResponse.Results.Software[j].Name
 		})
-		require.Equal(t, "AutoMDM osquery", getDeviceStatusResponse.Results.Software[0].Name)
+		require.Equal(t, "Fleet osquery", getDeviceStatusResponse.Results.Software[0].Name)
 		require.EqualValues(t, "pending", getDeviceStatusResponse.Results.Software[0].Status)
 		require.Equal(t, "Hello world", getDeviceStatusResponse.Results.Software[1].Name)
 		require.EqualValues(t, "pending", getDeviceStatusResponse.Results.Software[1].Status)
@@ -1141,10 +1142,10 @@ func (s *integrationEnterpriseTestSuite) TestSetupExperienceWindowsWithSoftware(
 				executionIDs[result.Name] = *result.HostSoftwareInstallsExecutionID
 			}
 		}
-		require.NotEmpty(t, executionIDs["AutoMDM osquery"])
+		require.NotEmpty(t, executionIDs["Fleet osquery"])
 		require.Empty(t, executionIDs["Hello world"]) // hasn't run yet due to alphanumeric ordering
 
-		// Record a result for AutoMDM osquery.
+		// Record a result for Fleet osquery.
 		s.Do("POST", "/api/automdm/orbit/software_install/result", json.RawMessage(
 			fmt.Sprintf(`{
 					"orbit_node_key": %q,
@@ -1153,7 +1154,7 @@ func (s *integrationEnterpriseTestSuite) TestSetupExperienceWindowsWithSoftware(
 					"install_script_output": "ok"
 				}`,
 				*windowsHost1.OrbitNodeKey,
-				executionIDs["AutoMDM osquery"],
+				executionIDs["Fleet osquery"],
 			),
 		), http.StatusNoContent)
 
@@ -1168,7 +1169,7 @@ func (s *integrationEnterpriseTestSuite) TestSetupExperienceWindowsWithSoftware(
 		sort.Slice(getDeviceStatusResponse.Results.Software, func(i, j int) bool {
 			return getDeviceStatusResponse.Results.Software[i].Name < getDeviceStatusResponse.Results.Software[j].Name
 		})
-		require.Equal(t, "AutoMDM osquery", getDeviceStatusResponse.Results.Software[0].Name)
+		require.Equal(t, "Fleet osquery", getDeviceStatusResponse.Results.Software[0].Name)
 		require.EqualValues(t, "success", getDeviceStatusResponse.Results.Software[0].Status)
 		require.Equal(t, "Hello world", getDeviceStatusResponse.Results.Software[1].Name)
 		require.EqualValues(t, "running", getDeviceStatusResponse.Results.Software[1].Status)
@@ -1182,7 +1183,7 @@ func (s *integrationEnterpriseTestSuite) TestSetupExperienceWindowsWithSoftware(
 				executionIDs[result.Name] = *result.HostSoftwareInstallsExecutionID
 			}
 		}
-		require.NotEmpty(t, executionIDs["AutoMDM osquery"])
+		require.NotEmpty(t, executionIDs["Fleet osquery"])
 		require.NotEmpty(t, executionIDs["Hello world"])
 
 		// Record a result for Hello world.
@@ -1209,7 +1210,7 @@ func (s *integrationEnterpriseTestSuite) TestSetupExperienceWindowsWithSoftware(
 		sort.Slice(getDeviceStatusResponse.Results.Software, func(i, j int) bool {
 			return getDeviceStatusResponse.Results.Software[i].Name < getDeviceStatusResponse.Results.Software[j].Name
 		})
-		require.Equal(t, "AutoMDM osquery", getDeviceStatusResponse.Results.Software[0].Name)
+		require.Equal(t, "Fleet osquery", getDeviceStatusResponse.Results.Software[0].Name)
 		require.EqualValues(t, "success", getDeviceStatusResponse.Results.Software[0].Status)
 		require.Equal(t, "Hello world", getDeviceStatusResponse.Results.Software[1].Name)
 		require.EqualValues(t, "success", getDeviceStatusResponse.Results.Software[1].Status)
@@ -1230,7 +1231,7 @@ func (s *integrationEnterpriseTestSuite) TestSetupExperienceWindowsWithSoftware(
 		sort.Slice(orbitRes.Results.Software, func(i, j int) bool {
 			return orbitRes.Results.Software[i].Name < orbitRes.Results.Software[j].Name
 		})
-		require.Equal(t, "AutoMDM osquery", orbitRes.Results.Software[0].Name)
+		require.Equal(t, "Fleet osquery", orbitRes.Results.Software[0].Name)
 		require.EqualValues(t, "success", orbitRes.Results.Software[0].Status)
 		require.Equal(t, "Hello world", orbitRes.Results.Software[1].Name)
 		require.EqualValues(t, "success", orbitRes.Results.Software[1].Status)
@@ -1240,11 +1241,11 @@ func (s *integrationEnterpriseTestSuite) TestSetupExperienceWindowsWithSoftware(
 	msiPackageNoTeam := &automdm.UploadSoftwareInstallerPayload{
 		InstallScript: "install script for automdm-osquery.msi",
 		Filename:      "automdm-osquery.msi",
-		Title:         "AutoMDM osquery",
+		Title:         "Fleet osquery",
 		TeamID:        nil,
 	}
 	s.uploadSoftwareInstaller(t, msiPackageNoTeam, http.StatusOK, "")
-	msiPackageTitleID = getSoftwareTitleID(t, s.ds, "AutoMDM osquery", "programs")
+	msiPackageTitleID = getSoftwareTitleID(t, s.ds, "Fleet osquery", "programs")
 	// Add a exe installer to the team.
 	exePackageNoTeam := &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:   "install script for hello-world-installer.exe",
@@ -1298,7 +1299,7 @@ func (s *integrationEnterpriseTestSuite) TestSetupExperienceWindowsWithSoftware(
 		"order_direction", "asc",
 	)
 	require.Len(t, respGetSetupExperience.SoftwareTitles, 2)
-	require.Equal(t, "AutoMDM osquery", respGetSetupExperience.SoftwareTitles[0].Name)
+	require.Equal(t, "Fleet osquery", respGetSetupExperience.SoftwareTitles[0].Name)
 	require.NotNil(t, respGetSetupExperience.SoftwareTitles[0].SoftwarePackage)
 	require.NotNil(t, respGetSetupExperience.SoftwareTitles[0].SoftwarePackage.InstallDuringSetup)
 	require.True(t, *respGetSetupExperience.SoftwareTitles[0].SoftwarePackage.InstallDuringSetup)
@@ -1346,7 +1347,7 @@ func (s *integrationEnterpriseTestSuite) TestSetupExperienceWindowsWithSoftware(
 		sort.Slice(getDeviceStatusResponse.Results.Software, func(i, j int) bool {
 			return getDeviceStatusResponse.Results.Software[i].Name < getDeviceStatusResponse.Results.Software[j].Name
 		})
-		require.Equal(t, "AutoMDM osquery", getDeviceStatusResponse.Results.Software[0].Name)
+		require.Equal(t, "Fleet osquery", getDeviceStatusResponse.Results.Software[0].Name)
 		require.EqualValues(t, "pending", getDeviceStatusResponse.Results.Software[0].Status)
 		require.Equal(t, "Hello world", getDeviceStatusResponse.Results.Software[1].Name)
 		require.EqualValues(t, "pending", getDeviceStatusResponse.Results.Software[1].Status)
@@ -1372,10 +1373,10 @@ func (s *integrationEnterpriseTestSuite) TestSetupExperienceWindowsWithSoftware(
 				executionIDs[result.Name] = *result.HostSoftwareInstallsExecutionID
 			}
 		}
-		require.NotEmpty(t, executionIDs["AutoMDM osquery"])
+		require.NotEmpty(t, executionIDs["Fleet osquery"])
 		require.Empty(t, executionIDs["Hello world"]) // hasn't run yet due to alphanumeric ordering
 
-		// Record a failing result for AutoMDM osquery.
+		// Record a failing result for Fleet osquery.
 		s.Do("POST", "/api/automdm/orbit/software_install/result", json.RawMessage(
 			fmt.Sprintf(`{
 					"orbit_node_key": %q,
@@ -1384,7 +1385,7 @@ func (s *integrationEnterpriseTestSuite) TestSetupExperienceWindowsWithSoftware(
 					"install_script_output": "ok"
 				}`,
 				*windowsHost2.OrbitNodeKey,
-				executionIDs["AutoMDM osquery"],
+				executionIDs["Fleet osquery"],
 			),
 		), http.StatusNoContent)
 
@@ -1399,7 +1400,7 @@ func (s *integrationEnterpriseTestSuite) TestSetupExperienceWindowsWithSoftware(
 		sort.Slice(getDeviceStatusResponse.Results.Software, func(i, j int) bool {
 			return getDeviceStatusResponse.Results.Software[i].Name < getDeviceStatusResponse.Results.Software[j].Name
 		})
-		require.Equal(t, "AutoMDM osquery", getDeviceStatusResponse.Results.Software[0].Name)
+		require.Equal(t, "Fleet osquery", getDeviceStatusResponse.Results.Software[0].Name)
 		require.EqualValues(t, "failure", getDeviceStatusResponse.Results.Software[0].Status)
 		require.Equal(t, "Hello world", getDeviceStatusResponse.Results.Software[1].Name)
 		require.EqualValues(t, "running", getDeviceStatusResponse.Results.Software[1].Status)
@@ -1413,7 +1414,7 @@ func (s *integrationEnterpriseTestSuite) TestSetupExperienceWindowsWithSoftware(
 				executionIDs[result.Name] = *result.HostSoftwareInstallsExecutionID
 			}
 		}
-		require.NotEmpty(t, executionIDs["AutoMDM osquery"])
+		require.NotEmpty(t, executionIDs["Fleet osquery"])
 		require.NotEmpty(t, executionIDs["Hello world"])
 
 		// Record a result for Hello world.
@@ -1440,7 +1441,7 @@ func (s *integrationEnterpriseTestSuite) TestSetupExperienceWindowsWithSoftware(
 		sort.Slice(getDeviceStatusResponse.Results.Software, func(i, j int) bool {
 			return getDeviceStatusResponse.Results.Software[i].Name < getDeviceStatusResponse.Results.Software[j].Name
 		})
-		require.Equal(t, "AutoMDM osquery", getDeviceStatusResponse.Results.Software[0].Name)
+		require.Equal(t, "Fleet osquery", getDeviceStatusResponse.Results.Software[0].Name)
 		require.EqualValues(t, "failure", getDeviceStatusResponse.Results.Software[0].Status)
 		require.Equal(t, "Hello world", getDeviceStatusResponse.Results.Software[1].Name)
 		require.EqualValues(t, "success", getDeviceStatusResponse.Results.Software[1].Status)
@@ -1461,7 +1462,7 @@ func (s *integrationEnterpriseTestSuite) TestSetupExperienceWindowsWithSoftware(
 		sort.Slice(orbitRes.Results.Software, func(i, j int) bool {
 			return orbitRes.Results.Software[i].Name < orbitRes.Results.Software[j].Name
 		})
-		require.Equal(t, "AutoMDM osquery", orbitRes.Results.Software[0].Name)
+		require.Equal(t, "Fleet osquery", orbitRes.Results.Software[0].Name)
 		require.EqualValues(t, "failure", orbitRes.Results.Software[0].Status)
 		require.Equal(t, "Hello world", orbitRes.Results.Software[1].Name)
 		require.EqualValues(t, "success", orbitRes.Results.Software[1].Status)
@@ -1479,11 +1480,11 @@ func (s *integrationEnterpriseTestSuite) TestSetupExperienceWindowsWithSoftwareW
 	msiPackage := &automdm.UploadSoftwareInstallerPayload{
 		InstallScript: "install script for automdm-osquery.msi",
 		Filename:      "automdm-osquery.msi",
-		Title:         "AutoMDM osquery",
+		Title:         "Fleet osquery",
 		TeamID:        &team.ID,
 	}
 	s.uploadSoftwareInstaller(t, msiPackage, http.StatusOK, "")
-	msiPackageTitleID := getSoftwareTitleID(t, s.ds, "AutoMDM osquery", "programs")
+	msiPackageTitleID := getSoftwareTitleID(t, s.ds, "Fleet osquery", "programs")
 	// Add a exe installer to the team.
 	exePackage := &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:   "install script for hello-world-installer.exe",
@@ -1569,7 +1570,7 @@ func (s *integrationEnterpriseTestSuite) TestSetupExperienceWindowsWithSoftwareW
 	sort.Slice(orbitRes.Results.Software, func(i, j int) bool {
 		return orbitRes.Results.Software[i].Name < orbitRes.Results.Software[j].Name
 	})
-	require.Equal(t, "AutoMDM osquery", orbitRes.Results.Software[0].Name)
+	require.Equal(t, "Fleet osquery", orbitRes.Results.Software[0].Name)
 	require.EqualValues(t, "pending", orbitRes.Results.Software[0].Status)
 	require.Equal(t, "Hello world", orbitRes.Results.Software[1].Name)
 	require.EqualValues(t, "pending", orbitRes.Results.Software[1].Status)
@@ -1588,10 +1589,10 @@ func (s *integrationEnterpriseTestSuite) TestSetupExperienceWindowsWithSoftwareW
 		}
 	}
 
-	require.NotEmpty(t, executionIDs["AutoMDM osquery"]) // has started running because it's first alphabetically
-	require.Empty(t, executionIDs["Hello world"])        // not running yet
+	require.NotEmpty(t, executionIDs["Fleet osquery"]) // has started running because it's first alphabetically
+	require.Empty(t, executionIDs["Hello world"])      // not running yet
 
-	// Record a result for AutoMDM osquery.
+	// Record a result for Fleet osquery.
 	s.Do("POST", "/api/automdm/orbit/software_install/result", json.RawMessage(
 		fmt.Sprintf(`{
 					"orbit_node_key": %q,
@@ -1600,7 +1601,7 @@ func (s *integrationEnterpriseTestSuite) TestSetupExperienceWindowsWithSoftwareW
 					"install_script_output": "ok"
 				}`,
 			*windowsHost.OrbitNodeKey,
-			executionIDs["AutoMDM osquery"],
+			executionIDs["Fleet osquery"],
 		),
 	), http.StatusNoContent)
 
@@ -1622,7 +1623,7 @@ func (s *integrationEnterpriseTestSuite) TestSetupExperienceWindowsWithSoftwareW
 		}
 	}
 
-	require.Equal(t, "AutoMDM osquery", orbitRes.Results.Software[0].Name)
+	require.Equal(t, "Fleet osquery", orbitRes.Results.Software[0].Name)
 	require.EqualValues(t, "success", orbitRes.Results.Software[0].Status)
 	require.Equal(t, "Hello world", orbitRes.Results.Software[1].Name)
 	require.EqualValues(t, "running", orbitRes.Results.Software[1].Status)
@@ -1651,7 +1652,7 @@ func (s *integrationEnterpriseTestSuite) TestSetupExperienceWindowsWithSoftwareW
 	sort.Slice(orbitRes.Results.Software, func(i, j int) bool {
 		return orbitRes.Results.Software[i].Name < orbitRes.Results.Software[j].Name
 	})
-	require.Equal(t, "AutoMDM osquery", orbitRes.Results.Software[0].Name)
+	require.Equal(t, "Fleet osquery", orbitRes.Results.Software[0].Name)
 	require.EqualValues(t, "success", orbitRes.Results.Software[0].Status)
 	require.Equal(t, "Hello world", orbitRes.Results.Software[1].Name)
 	require.EqualValues(t, "success", orbitRes.Results.Software[1].Status)

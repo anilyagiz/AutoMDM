@@ -547,11 +547,9 @@ func (s *integrationTestSuite) TestHostsReportDownload() {
 	require.NoError(t, err)
 	require.Len(t, rows, len(hosts)+1) // all hosts + header row
 	assert.Len(t, rows[0], 57)         // total number of cols
-	// Validate that the team columns are present and the removed team ones are not.
+	// Validate that the team columns are present.
 	assert.Contains(t, rows[0], "team_id")
 	assert.Contains(t, rows[0], "team_name")
-	assert.NotContains(t, rows[0], "team_id")
-	assert.NotContains(t, rows[0], "team_name")
 
 	// os_name is emitted right before os_version.
 	osNameCol := slices.Index(rows[0], "os_name")
@@ -594,8 +592,6 @@ func (s *integrationTestSuite) TestHostsReportDownload() {
 	assert.Contains(t, rows[0], "team_name")
 	require.Contains(t, res.Header, "Content-Disposition")
 
-	// the removed column names are an invalid column
-	s.DoRaw("GET", "/api/latest/automdm/hosts/report", nil, http.StatusBadRequest, "format", "csv", "columns", "hostname,team_id")
 	require.Contains(t, res.Header, "Content-Type")
 	require.Contains(t, res.Header, "X-Content-Type-Options")
 	require.Contains(t, res.Header.Get("Content-Disposition"), "attachment;")

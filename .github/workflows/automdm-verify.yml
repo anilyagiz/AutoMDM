@@ -119,8 +119,13 @@ jobs:
           echo "$GITHUB_SHA" > /tmp/logs/TRIGGER_SHA
           date -u +%FT%TZ > /tmp/logs/FINISHED
           cd /tmp/logs
-          if [ -f test.log ]; then grep -aE "^(--- FAIL|FAIL|panic:|ok )" test.log > summary.txt || true; fi
+          if [ -f test.log ]; then
+            grep -aE "^(--- FAIL|FAIL|panic:|ok )" test.log > summary.txt || true
+            # the first lines of each failure's output, for when test.log is too large to fetch
+            grep -aE -B40 -A3 "^\s*--- FAIL" test.log | head -c 5000000 > failures.txt || true
+          fi
           find . -type f -size +20M -exec gzip -9 {} \;
+          for f in $(find . -type f -size +90M); do split -b 50M "$f" "$f.part-" && rm "$f"; done
           git init -q
           git checkout -q -b "$BRANCH"
           git add -A
@@ -199,8 +204,13 @@ jobs:
           echo "$GITHUB_SHA" > /tmp/logs/TRIGGER_SHA
           date -u +%FT%TZ > /tmp/logs/FINISHED
           cd /tmp/logs
-          if [ -f test.log ]; then grep -aE "^(--- FAIL|FAIL|panic:|ok )" test.log > summary.txt || true; fi
+          if [ -f test.log ]; then
+            grep -aE "^(--- FAIL|FAIL|panic:|ok )" test.log > summary.txt || true
+            # the first lines of each failure's output, for when test.log is too large to fetch
+            grep -aE -B40 -A3 "^\s*--- FAIL" test.log | head -c 5000000 > failures.txt || true
+          fi
           find . -type f -size +20M -exec gzip -9 {} \;
+          for f in $(find . -type f -size +90M); do split -b 50M "$f" "$f.part-" && rm "$f"; done
           git init -q
           git checkout -q -b "$BRANCH"
           git add -A
