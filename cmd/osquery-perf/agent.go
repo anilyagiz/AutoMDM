@@ -609,9 +609,9 @@ type agent struct {
 	installedProfilesMu sync.Mutex
 	installedProfiles   map[string]installedMDMProfile
 
-	disableScriptExec   bool
+	disableScriptExec     bool
 	disableAutoMDMDesktop bool
-	loggerTLSMaxLines   int
+	loggerTLSMaxLines     int
 
 	// atomic boolean is set to true when executing scripts, so that only a
 	// single goroutine at a time can execute scripts.
@@ -935,7 +935,7 @@ func newAgent(
 		osqueryConfigNudge:      make(chan struct{}, 1),
 
 		disableScriptExec:        disableScriptExec,
-		disableAutoMDMDesktop:      disableAutoMDMDesktop,
+		disableAutoMDMDesktop:    disableAutoMDMDesktop,
 		loggerTLSMaxLines:        loggerTLSMaxLines,
 		bufferedResults:          make(map[resultLog]int),
 		scheduledQueryData:       new(sync.Map),
@@ -3978,48 +3978,48 @@ func (a *agent) runLiveYaraQuery(query string) (results []map[string]string, sta
 	// Return a response indicating that the file is clean.
 	ss := automdm.OsqueryStatus(0)
 	return []map[string]string{
-		{
-			"count":     "0",
-			"matches":   "",
-			"strings":   "",
-			"tags":      "",
-			"sig_group": "",
-			"sigfile":   "",
-			"sigrule":   "",
-			"sigurl":    url,
-			// Could pull this from the query, but not necessary for load testing.
-			"path": "/some/path",
-		},
-	}, &ss, nil, &automdm.Stats{
-		WallTimeMs: uint64(rand.Intn(1000) * 1000), //nolint:gosec // G115: rand.Intn(1000) is bounded, so this cannot overflow.
-		UserTime:   uint64(rand.Intn(1000)),        //nolint:gosec // G115: rand.Intn(1000) is bounded, so this cannot overflow.
-		SystemTime: uint64(rand.Intn(1000)),        //nolint:gosec // G115: rand.Intn(1000) is bounded, so this cannot overflow.
-		Memory:     uint64(rand.Intn(1000)),        //nolint:gosec // G115: rand.Intn(1000) is bounded, so this cannot overflow.
-	}
+			{
+				"count":     "0",
+				"matches":   "",
+				"strings":   "",
+				"tags":      "",
+				"sig_group": "",
+				"sigfile":   "",
+				"sigrule":   "",
+				"sigurl":    url,
+				// Could pull this from the query, but not necessary for load testing.
+				"path": "/some/path",
+			},
+		}, &ss, nil, &automdm.Stats{
+			WallTimeMs: uint64(rand.Intn(1000) * 1000), //nolint:gosec // G115: rand.Intn(1000) is bounded, so this cannot overflow.
+			UserTime:   uint64(rand.Intn(1000)),        //nolint:gosec // G115: rand.Intn(1000) is bounded, so this cannot overflow.
+			SystemTime: uint64(rand.Intn(1000)),        //nolint:gosec // G115: rand.Intn(1000) is bounded, so this cannot overflow.
+			Memory:     uint64(rand.Intn(1000)),        //nolint:gosec // G115: rand.Intn(1000) is bounded, so this cannot overflow.
+		}
 }
 
 func (a *agent) runLiveMockQuery(query string) (results []map[string]string, status *automdm.OsqueryStatus, message *string, stats *automdm.Stats) {
 	ss := automdm.OsqueryStatus(0)
 	return []map[string]string{
-		{
-			"admindir":   "/var/lib/dpkg",
-			"arch":       "amd64",
-			"maintainer": "foobar",
-			"name":       "netconf",
-			"priority":   "optional",
-			"revision":   "",
-			"section":    "default",
-			"size":       "112594",
-			"source":     "",
-			"status":     "install ok installed",
-			"version":    "20230224000000",
-		},
-	}, &ss, nil, &automdm.Stats{
-		WallTimeMs: uint64(rand.Intn(1000) * 1000), //nolint:gosec // G115: rand.Intn(1000) is bounded, so this cannot overflow.
-		UserTime:   uint64(rand.Intn(1000)),        //nolint:gosec // G115: rand.Intn(1000) is bounded, so this cannot overflow.
-		SystemTime: uint64(rand.Intn(1000)),        //nolint:gosec // G115: rand.Intn(1000) is bounded, so this cannot overflow.
-		Memory:     uint64(rand.Intn(1000)),        //nolint:gosec // G115: rand.Intn(1000) is bounded, so this cannot overflow.
-	}
+			{
+				"admindir":   "/var/lib/dpkg",
+				"arch":       "amd64",
+				"maintainer": "foobar",
+				"name":       "netconf",
+				"priority":   "optional",
+				"revision":   "",
+				"section":    "default",
+				"size":       "112594",
+				"source":     "",
+				"status":     "install ok installed",
+				"version":    "20230224000000",
+			},
+		}, &ss, nil, &automdm.Stats{
+			WallTimeMs: uint64(rand.Intn(1000) * 1000), //nolint:gosec // G115: rand.Intn(1000) is bounded, so this cannot overflow.
+			UserTime:   uint64(rand.Intn(1000)),        //nolint:gosec // G115: rand.Intn(1000) is bounded, so this cannot overflow.
+			SystemTime: uint64(rand.Intn(1000)),        //nolint:gosec // G115: rand.Intn(1000) is bounded, so this cannot overflow.
+			Memory:     uint64(rand.Intn(1000)),        //nolint:gosec // G115: rand.Intn(1000) is bounded, so this cannot overflow.
+		}
 }
 
 func (a *agent) processQuery(name, query string, cachedResults *cachedResults) (
@@ -4028,7 +4028,7 @@ func (a *agent) processQuery(name, query string, cachedResults *cachedResults) (
 ) {
 	const (
 		hostPolicyQueryPrefix = "automdm_policy_query_"
-		hostDetailQueryPrefix = "team_detail_query_"
+		hostDetailQueryPrefix = "automdm_detail_query_"
 		hostLabelQueryPrefix  = "automdm_label_query_"
 		liveQueryPrefix       = "automdm_distributed_query_"
 	)

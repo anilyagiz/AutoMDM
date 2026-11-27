@@ -1133,8 +1133,8 @@ func (s *liveQueriesTestSuite) TestOsqueryDistributedReadWithFeatures() {
 	req := getDistributedQueriesRequest{NodeKey: *host.NodeKey}
 	var dqResp getDistributedQueriesResponse
 	s.DoJSON("POST", "/api/osquery/distributed/read", req, http.StatusOK, &dqResp)
-	require.Contains(t, dqResp.Queries, "team_detail_query_users")
-	require.Contains(t, dqResp.Queries, "team_detail_query_software_macos")
+	require.Contains(t, dqResp.Queries, "automdm_detail_query_users")
+	require.Contains(t, dqResp.Queries, "automdm_detail_query_software_macos")
 
 	err = s.ds.AddHostsToTeam(context.Background(), automdm.NewAddHostsToTeamParams(&team.ID, []uint{host.ID}))
 	require.NoError(t, err)
@@ -1143,8 +1143,8 @@ func (s *liveQueriesTestSuite) TestOsqueryDistributedReadWithFeatures() {
 	req = getDistributedQueriesRequest{NodeKey: *host.NodeKey}
 	dqResp = getDistributedQueriesResponse{}
 	s.DoJSON("POST", "/api/osquery/distributed/read", req, http.StatusOK, &dqResp)
-	require.Contains(t, dqResp.Queries, "team_detail_query_users")
-	require.Contains(t, dqResp.Queries, "team_detail_query_software_macos")
+	require.Contains(t, dqResp.Queries, "automdm_detail_query_users")
+	require.Contains(t, dqResp.Queries, "automdm_detail_query_software_macos")
 }
 
 func (s *liveQueriesTestSuite) TestCreateDistributedQueryCampaignBadRequest() {

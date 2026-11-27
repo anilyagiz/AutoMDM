@@ -66,22 +66,22 @@ func (s *integrationMDMTestSuite) simulateMDMWindowsQueries(t *testing.T, host *
 	require.NoError(t, err)
 
 	s.DoJSON("POST", "/api/osquery/distributed/read", req, http.StatusOK, &dqResp)
-	require.Contains(t, dqResp.Queries, "team_detail_query_mdm_device_id_windows")
-	require.Contains(t, dqResp.Queries, "team_detail_query_mdm_windows")
+	require.Contains(t, dqResp.Queries, "automdm_detail_query_mdm_device_id_windows")
+	require.Contains(t, dqResp.Queries, "automdm_detail_query_mdm_windows")
 
 	distributedReq := SubmitDistributedQueryResultsRequest{
 		NodeKey: *host.NodeKey,
 		Results: map[string][]map[string]string{
-			"team_detail_query_mdm_windows": {
+			"automdm_detail_query_mdm_windows": {
 				{"aad_resource_id": s.server.URL, "discovery_service_url": s.server.URL + "/api/mdm/microsoft/discovery", "provider_id": "AutoMDM", "installation_type": "Client"},
 			},
-			"team_detail_query_mdm_device_id_windows": {
+			"automdm_detail_query_mdm_device_id_windows": {
 				{"name": "DeviceClientId", "data": mdmDevice.DeviceID},
 			},
 		},
 		Statuses: map[string]automdm.OsqueryStatus{
-			"team_detail_query_mdm_device_id_windows": 0,
-			"team_detail_query_mdm_windows":           0,
+			"automdm_detail_query_mdm_device_id_windows": 0,
+			"automdm_detail_query_mdm_windows":           0,
 		},
 	}
 	distributedResp := submitDistributedQueryResultsResponse{}
@@ -2056,9 +2056,9 @@ func (s *integrationMDMTestSuite) TestWindowsFreshEnrollEmptyQuery() {
 	var dqResp getDistributedQueriesResponse
 	s.DoJSON("POST", "/api/osquery/distributed/read", req, http.StatusOK, &dqResp)
 	// We no longer read profiles via osquery
-	require.NotContains(t, dqResp.Queries, "team_detail_query_mdm_config_profiles_windows")
-	require.Contains(t, dqResp.Queries, "team_detail_query_mdm_device_id_windows")
-	require.NotEmpty(t, dqResp.Queries, "team_detail_query_mdm_device_id_windows")
+	require.NotContains(t, dqResp.Queries, "automdm_detail_query_mdm_config_profiles_windows")
+	require.Contains(t, dqResp.Queries, "automdm_detail_query_mdm_device_id_windows")
+	require.NotEmpty(t, dqResp.Queries, "automdm_detail_query_mdm_device_id_windows")
 }
 
 func (s *integrationMDMTestSuite) TestWindowsMigrationEnabled() {

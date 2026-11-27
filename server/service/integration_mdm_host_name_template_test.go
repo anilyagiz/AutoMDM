@@ -184,7 +184,7 @@ func (s *integrationMDMTestSuite) TestHostNameTemplateEndToEnd() {
 		distributedReq := SubmitDistributedQueryResultsRequest{
 			NodeKey: *macHost.NodeKey,
 			Results: map[string][]map[string]string{
-				"team_detail_query_system_info": {
+				"automdm_detail_query_system_info": {
 					{
 						"computer_name":      computerName,
 						"hostname":           computerName,
@@ -198,7 +198,7 @@ func (s *integrationMDMTestSuite) TestHostNameTemplateEndToEnd() {
 				},
 			},
 			Statuses: map[string]automdm.OsqueryStatus{
-				"team_detail_query_system_info": 0,
+				"automdm_detail_query_system_info": 0,
 			},
 		}
 		distributedResp := submitDistributedQueryResultsResponse{}
@@ -630,7 +630,7 @@ func (s *integrationMDMTestSuite) TestHostNameTemplateNoTeamEndToEnd() {
 		distributedReq := SubmitDistributedQueryResultsRequest{
 			NodeKey: *macHost.NodeKey,
 			Results: map[string][]map[string]string{
-				"team_detail_query_system_info": {{
+				"automdm_detail_query_system_info": {{
 					"computer_name":      computerName,
 					"hostname":           computerName,
 					"uuid":               macHost.UUID,
@@ -641,7 +641,7 @@ func (s *integrationMDMTestSuite) TestHostNameTemplateNoTeamEndToEnd() {
 					"cpu_logical_cores":  "8",
 				}},
 			},
-			Statuses: map[string]automdm.OsqueryStatus{"team_detail_query_system_info": 0},
+			Statuses: map[string]automdm.OsqueryStatus{"automdm_detail_query_system_info": 0},
 		}
 		s.DoJSON("POST", "/api/osquery/distributed/write", distributedReq, http.StatusOK, &submitDistributedQueryResultsResponse{})
 	}

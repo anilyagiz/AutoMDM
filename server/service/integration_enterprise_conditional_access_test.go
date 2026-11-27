@@ -252,7 +252,7 @@ func (s *integrationEnterpriseTestSuite) reportEntraDeviceToken(
 
 func genDistributedReqWithEntraIDDetailsForWindows(host *automdm.Host, deviceID string) submitDistributedQueryResultsRequestShim {
 	results := make(map[string]json.RawMessage)
-	results["team_detail_query_conditional_access_microsoft_device_id_windows"] = json.RawMessage(fmt.Sprintf(`[{"device_id": "%s"}]`, deviceID))
+	results["automdm_detail_query_conditional_access_microsoft_device_id_windows"] = json.RawMessage(fmt.Sprintf(`[{"device_id": "%s"}]`, deviceID))
 	return submitDistributedQueryResultsRequestShim{
 		NodeKey:  *host.NodeKey,
 		Results:  results,

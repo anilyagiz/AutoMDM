@@ -35,9 +35,9 @@ func (s *integrationMDMTestSuite) TestOsqueryDoesNotChangeHostUUID() {
 			s.postNoAuth(t, "/api/osquery/distributed/write", SubmitDistributedQueryResultsRequest{
 				NodeKey: *host.NodeKey,
 				Results: map[string][]map[string]string{
-					"team_detail_query_system_info": {{"uuid": other.UUID, "hardware_serial": host.HardwareSerial}},
+					"automdm_detail_query_system_info": {{"uuid": other.UUID, "hardware_serial": host.HardwareSerial}},
 				},
-				Statuses: map[string]automdm.OsqueryStatus{"team_detail_query_system_info": 0},
+				Statuses: map[string]automdm.OsqueryStatus{"automdm_detail_query_system_info": 0},
 			}, http.StatusOK)
 
 			stored, err := s.ds.Host(ctx, host.ID)
@@ -97,8 +97,8 @@ func (s *integrationMDMTestSuite) TestEnrollWithUUIDOfAnotherMDMHost() {
 
 						s.postNoAuth(t, "/api/osquery/distributed/write", SubmitDistributedQueryResultsRequest{
 							NodeKey:  nodeKey,
-							Results:  map[string][]map[string]string{"team_detail_query_system_info": {report.systemInfo}},
-							Statuses: map[string]automdm.OsqueryStatus{"team_detail_query_system_info": 0},
+							Results:  map[string][]map[string]string{"automdm_detail_query_system_info": {report.systemInfo}},
+							Statuses: map[string]automdm.OsqueryStatus{"automdm_detail_query_system_info": 0},
 						}, http.StatusOK)
 
 						s.requireOnlyHostWithUUID(t, host)
@@ -237,9 +237,9 @@ func (s *integrationMDMTestSuite) TestEnrollmentNextToMDMHostUUIDStillAllowed() 
 		s.postNoAuth(t, "/api/osquery/distributed/write", SubmitDistributedQueryResultsRequest{
 			NodeKey: nodeKey,
 			Results: map[string][]map[string]string{
-				"team_detail_query_system_info": {{"uuid": hostUUID, "hardware_serial": mdmtest.RandSerialNumber()}},
+				"automdm_detail_query_system_info": {{"uuid": hostUUID, "hardware_serial": mdmtest.RandSerialNumber()}},
 			},
-			Statuses: map[string]automdm.OsqueryStatus{"team_detail_query_system_info": 0},
+			Statuses: map[string]automdm.OsqueryStatus{"automdm_detail_query_system_info": 0},
 		}, http.StatusOK)
 
 		host, err := s.ds.LoadHostByNodeKey(ctx, nodeKey)

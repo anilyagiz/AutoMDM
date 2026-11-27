@@ -1875,7 +1875,7 @@ const (
 
 	// hostDetailQueryPrefix is appended before the query name when a query is
 	// provided as a detail query.
-	hostDetailQueryPrefix = "team_detail_query_"
+	hostDetailQueryPrefix = "automdm_detail_query_"
 
 	// hostAdditionalQueryPrefix is appended before the query name when a query is
 	// provided as an additional query (additional info for hosts to retrieve).

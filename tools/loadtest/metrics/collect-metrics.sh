@@ -1283,7 +1283,7 @@ fi
 # CloudWatch Logs Insights — AutoMDM server error query
 # Queries the AutoMDM server log group for error-level log entries, filtering
 # out known noise:
-#   - team_detail_query_software errors (osquery-perf has a default 50%
+#   - automdm_detail_query_software errors (osquery-perf has a default 50%
 #     failure rate for software queries)
 #   - "context canceled" errors (normal during container deployments)
 #
@@ -1300,7 +1300,7 @@ if [[ -n "$AUTOMDM_LOG_GROUP" ]]; then
     --end-time "$END_EPOCH" \
     --query-string 'fields @timestamp, @message
 | filter ispresent(error) or ispresent(err) or level = "error"
-| filter @message not like /team_detail_query_software/
+| filter @message not like /automdm_detail_query_software/
 | filter @message not like /context canceled/
 | filter level != "debug"
 | filter level != "info"

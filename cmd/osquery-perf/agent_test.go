@@ -180,7 +180,7 @@ func TestProcessQueryMDMConfigProfiles(t *testing.T) {
 
 	// The legacy device-only query simulates a failed osquery discovery:
 	// handled, but nothing submitted for it.
-	handled, results, status, message, stats := a.processQuery("team_detail_query_mdm_config_profiles_darwin", "SELECT 1;", &cached)
+	handled, results, status, message, stats := a.processQuery("automdm_detail_query_mdm_config_profiles_darwin", "SELECT 1;", &cached)
 	assert.True(t, handled)
 	assert.Nil(t, results)
 	assert.Nil(t, status)
@@ -191,7 +191,7 @@ func TestProcessQueryMDMConfigProfiles(t *testing.T) {
 	// query ~10% of the time, so retry until a success is observed.
 	sawSuccess := false
 	for i := 0; i < 100 && !sawSuccess; i++ {
-		handled, results, status, _, _ := a.processQuery("team_detail_query_mdm_config_profiles_darwin_with_user", "SELECT 1;", &cached)
+		handled, results, status, _, _ := a.processQuery("automdm_detail_query_mdm_config_profiles_darwin_with_user", "SELECT 1;", &cached)
 		require.True(t, handled)
 		require.NotNil(t, status)
 		if *status == automdm.StatusOK {

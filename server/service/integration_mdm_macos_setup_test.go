@@ -2030,19 +2030,19 @@ func (s *integrationMDMTestSuite) TestManagedLocalAccount() {
 		require.NoError(t, hres.Body.Close())
 		require.NotEmpty(t, osqueryEnrollResp.NodeKey)
 
-		// Simulate the osquery team_detail_query_users write, including the
+		// Simulate the osquery automdm_detail_query_users write, including the
 		// _automdmadmin row. This should capture account_uuid.
 		submitUsersResult := func() {
 			distributedReq := SubmitDistributedQueryResultsRequest{
 				NodeKey: osqueryEnrollResp.NodeKey,
 				Results: map[string][]map[string]string{
-					"team_detail_query_users": {
+					"automdm_detail_query_users": {
 						{"uid": "501", "username": "alice", "type": "standard", "groupname": "staff", "shell": "/bin/zsh", "uuid": "alice-osquery-uuid"},
 						{"uid": "502", "username": "_automdmadmin", "type": "standard", "groupname": "staff", "shell": "/bin/zsh", "uuid": "automdmadmin-osquery-uuid"},
 					},
 				},
 				Statuses: map[string]automdm.OsqueryStatus{
-					"team_detail_query_users": 0,
+					"automdm_detail_query_users": 0,
 				},
 			}
 			distributedResp := submitDistributedQueryResultsResponse{}

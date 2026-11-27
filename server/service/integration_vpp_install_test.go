@@ -527,7 +527,7 @@ func (s *integrationMDMTestSuite) TestVPPAppInstallVerification() {
 	req := getDistributedQueriesRequest{NodeKey: *mdmHost.NodeKey}
 	var dqResp getDistributedQueriesResponse
 	s.DoJSON("POST", "/api/osquery/distributed/read", req, http.StatusOK, &dqResp)
-	require.Contains(t, dqResp.Queries, "team_detail_query_software_macos")
+	require.Contains(t, dqResp.Queries, "automdm_detail_query_software_macos")
 	require.NoError(t, s.ds.UpdateHostRefetchRequested(context.Background(), mdmHost.ID, false))
 
 	// Check list host software
@@ -640,7 +640,7 @@ func (s *integrationMDMTestSuite) TestVPPAppInstallVerification() {
 	require.True(t, hostResp.Host.RefetchRequested, "RefetchRequested should be true after successful software install")
 
 	s.DoJSON("POST", "/api/osquery/distributed/read", req, http.StatusOK, &dqResp)
-	require.Contains(t, dqResp.Queries, "team_detail_query_software_macos")
+	require.Contains(t, dqResp.Queries, "automdm_detail_query_software_macos")
 	require.NoError(t, s.ds.UpdateHostRefetchRequested(context.Background(), mdmHost.ID, false))
 
 	// ========================================================

@@ -114,8 +114,8 @@ func (s *integrationTestSuite) TestAppConfigDetailQueryOverridesRemoved() {
 
 	var dqResp getDistributedQueriesResponse
 	s.DoJSON("POST", "/api/osquery/distributed/read", getDistributedQueriesRequest{NodeKey: *host.NodeKey}, http.StatusOK, &dqResp)
-	require.Contains(t, dqResp.Queries["team_detail_query_users"], "FROM users")
-	require.Contains(t, dqResp.Queries["team_detail_query_software_macos"], "FROM apps")
+	require.Contains(t, dqResp.Queries["automdm_detail_query_users"], "FROM users")
+	require.Contains(t, dqResp.Queries["automdm_detail_query_software_macos"], "FROM apps")
 
 	// Saves re-marshal the whole config from the struct, so the stale key disappears without a migration.
 	s.applyConfig([]byte(`

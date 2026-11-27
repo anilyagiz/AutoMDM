@@ -2296,28 +2296,28 @@ func TestQueriesAndHostFeatures(t *testing.T) {
 		ctx = hostctx.NewContext(ctx, &host)
 		queries, _, _, err := svc.GetDistributedQueries(ctx)
 		require.NoError(t, err)
-		require.NotContains(t, queries, "team_detail_query_users")
-		require.NotContains(t, queries, "team_detail_query_software_macos")
-		require.NotContains(t, queries, "team_detail_query_software_linux")
-		require.NotContains(t, queries, "team_detail_query_software_windows")
+		require.NotContains(t, queries, "automdm_detail_query_users")
+		require.NotContains(t, queries, "automdm_detail_query_software_macos")
+		require.NotContains(t, queries, "automdm_detail_query_software_linux")
+		require.NotContains(t, queries, "automdm_detail_query_software_windows")
 
 		// assign team 1 to host
 		host.TeamID = &team1.ID
 		queries, _, _, err = svc.GetDistributedQueries(ctx)
 		require.NoError(t, err)
-		require.NotContains(t, queries, "team_detail_query_users")
-		require.NotContains(t, queries, "team_detail_query_software_macos")
-		require.NotContains(t, queries, "team_detail_query_software_linux")
-		require.NotContains(t, queries, "team_detail_query_software_windows")
+		require.NotContains(t, queries, "automdm_detail_query_users")
+		require.NotContains(t, queries, "automdm_detail_query_software_macos")
+		require.NotContains(t, queries, "automdm_detail_query_software_linux")
+		require.NotContains(t, queries, "automdm_detail_query_software_windows")
 
 		// assign team 2 to host
 		host.TeamID = &team2.ID
 		queries, _, _, err = svc.GetDistributedQueries(ctx)
 		require.NoError(t, err)
-		require.NotContains(t, queries, "team_detail_query_users")
-		require.NotContains(t, queries, "team_detail_query_software_macos")
-		require.NotContains(t, queries, "team_detail_query_software_linux")
-		require.NotContains(t, queries, "team_detail_query_software_windows")
+		require.NotContains(t, queries, "automdm_detail_query_users")
+		require.NotContains(t, queries, "automdm_detail_query_software_macos")
+		require.NotContains(t, queries, "automdm_detail_query_software_linux")
+		require.NotContains(t, queries, "automdm_detail_query_software_windows")
 	})
 
 	t.Run("premium license", func(t *testing.T) {
@@ -2328,26 +2328,26 @@ func TestQueriesAndHostFeatures(t *testing.T) {
 		ctx = hostctx.NewContext(ctx, &host)
 		queries, _, _, err := svc.GetDistributedQueries(ctx)
 		require.NoError(t, err)
-		require.NotContains(t, queries, "team_detail_query_users")
-		require.NotContains(t, queries, "team_detail_query_software_macos")
-		require.NotContains(t, queries, "team_detail_query_software_linux")
-		require.NotContains(t, queries, "team_detail_query_software_windows")
+		require.NotContains(t, queries, "automdm_detail_query_users")
+		require.NotContains(t, queries, "automdm_detail_query_software_macos")
+		require.NotContains(t, queries, "automdm_detail_query_software_linux")
+		require.NotContains(t, queries, "automdm_detail_query_software_windows")
 
 		// assign team 1 to host
 		host.TeamID = &team1.ID
 		queries, _, _, err = svc.GetDistributedQueries(ctx)
 		require.NoError(t, err)
-		require.Contains(t, queries, "team_detail_query_users")
-		require.NotContains(t, queries, "team_detail_query_software_macos")
-		require.NotContains(t, queries, "team_detail_query_software_linux")
-		require.NotContains(t, queries, "team_detail_query_software_windows")
+		require.Contains(t, queries, "automdm_detail_query_users")
+		require.NotContains(t, queries, "automdm_detail_query_software_macos")
+		require.NotContains(t, queries, "automdm_detail_query_software_linux")
+		require.NotContains(t, queries, "automdm_detail_query_software_windows")
 
 		// assign team 2 to host
 		host.TeamID = &team2.ID
 		queries, _, _, err = svc.GetDistributedQueries(ctx)
 		require.NoError(t, err)
-		require.NotContains(t, queries, "team_detail_query_users")
-		require.Contains(t, queries, "team_detail_query_software_macos")
+		require.NotContains(t, queries, "automdm_detail_query_users")
+		require.Contains(t, queries, "automdm_detail_query_software_macos")
 	})
 }
 
@@ -2872,13 +2872,13 @@ func TestDetailQueriesWithEmptyStrings(t *testing.T) {
 
 	resultJSON := `
 {
-  "team_detail_query_network_interface_windows": [
+  "automdm_detail_query_network_interface_windows": [
     {
       "address": "192.168.0.1",
       "mac": "5f:3d:4b:10:25:82"
     }
   ],
-  "team_detail_query_os_version": [
+  "automdm_detail_query_os_version": [
     {
       "platform": "darwin",
       "build": "15G1004",
@@ -2888,7 +2888,7 @@ func TestDetailQueriesWithEmptyStrings(t *testing.T) {
       "patch": "6"
     }
   ],
-  "team_detail_query_osquery_info": [
+  "automdm_detail_query_osquery_info": [
     {
       "build_distro": "10.10",
       "build_platform": "darwin",
@@ -2901,7 +2901,7 @@ func TestDetailQueriesWithEmptyStrings(t *testing.T) {
       "watcher": "38112"
     }
   ],
-  "team_detail_query_system_info": [
+  "automdm_detail_query_system_info": [
     {
       "computer_name": "computer",
       "cpu_brand": "Intel(R) Core(TM) i7-4770HQ CPU @ 2.20GHz",
@@ -2918,7 +2918,7 @@ func TestDetailQueriesWithEmptyStrings(t *testing.T) {
       "uuid": "uuid"
     }
   ],
-  "team_detail_query_uptime": [
+  "automdm_detail_query_uptime": [
     {
       "days": "20",
       "hours": "0",
@@ -2927,7 +2927,7 @@ func TestDetailQueriesWithEmptyStrings(t *testing.T) {
       "total_seconds": "1730893"
     }
   ],
-  "team_detail_query_osquery_flags": [
+  "automdm_detail_query_osquery_flags": [
     {
       "name": "config_tls_refresh",
       "value": ""
@@ -2941,7 +2941,7 @@ func TestDetailQueriesWithEmptyStrings(t *testing.T) {
       "value": ""
     }
   ],
-  "team_detail_query_orbit_info": [
+  "automdm_detail_query_orbit_info": [
     {
       "name": "version",
       "value": "42"
@@ -3114,7 +3114,7 @@ func TestDetailQueries(t *testing.T) {
 
 	resultJSON := `
 {
-"team_detail_query_network_interface": [
+"automdm_detail_query_network_interface": [
     {
         "address": "192.168.0.1",
         "broadcast": "192.168.0.255",
@@ -3134,7 +3134,7 @@ func TestDetailQueries(t *testing.T) {
         "type": "6"
     }
 ],
-"team_detail_query_os_version": [
+"automdm_detail_query_os_version": [
     {
         "platform": "darwin",
         "build": "15G1004",
@@ -3144,7 +3144,7 @@ func TestDetailQueries(t *testing.T) {
         "patch": "6"
     }
 ],
-"team_detail_query_osquery_info": [
+"automdm_detail_query_osquery_info": [
     {
         "build_distro": "10.10",
         "build_platform": "darwin",
@@ -3157,7 +3157,7 @@ func TestDetailQueries(t *testing.T) {
         "watcher": "38112"
     }
 ],
-"team_detail_query_system_info": [
+"automdm_detail_query_system_info": [
     {
         "computer_name": "computer",
         "cpu_brand": "Intel(R) Core(TM) i7-4770HQ CPU @ 2.20GHz",
@@ -3174,7 +3174,7 @@ func TestDetailQueries(t *testing.T) {
         "uuid": "uuid"
     }
 ],
-"team_detail_query_uptime": [
+"automdm_detail_query_uptime": [
     {
         "days": "20",
         "hours": "0",
@@ -3183,7 +3183,7 @@ func TestDetailQueries(t *testing.T) {
         "total_seconds": "1730893"
     }
 ],
-"team_detail_query_osquery_flags": [
+"automdm_detail_query_osquery_flags": [
     {
       "name":"config_tls_refresh",
       "value":"10"
@@ -3201,7 +3201,7 @@ func TestDetailQueries(t *testing.T) {
       "value":"60"
     }
 ],
-"team_detail_query_users": [
+"automdm_detail_query_users": [
     {
       "uid": "1234",
       "username": "user1",
@@ -3216,7 +3216,7 @@ func TestDetailQueries(t *testing.T) {
       "groupname": "somegroup"
     }
 ],
-"team_detail_query_software_macos": [
+"automdm_detail_query_software_macos": [
     {
       "name": "app1",
       "version": "1.0.0",
@@ -3229,26 +3229,26 @@ func TestDetailQueries(t *testing.T) {
       "bundle_identifier": "somebundle"
     }
 ],
-"team_detail_query_disk_space_unix": [
+"automdm_detail_query_disk_space_unix": [
 	{
 		"percent_disk_space_available": "56",
 		"gigs_disk_space_available": "277.0",
 		"gigs_total_disk_space": "500.1"
 	}
 ],
-"team_detail_query_mdm": [
+"automdm_detail_query_mdm": [
 	{
 		"enrolled": "true",
 		"server_url": "hi.com",
 		"installed_from_dep": "false"
 	}
 ],
-"team_detail_query_munki_info": [
+"automdm_detail_query_munki_info": [
 	{
 		"version": "3.4.5"
 	}
 ],
-"team_detail_query_orbit_info": [
+"automdm_detail_query_orbit_info": [
 	{
 		"version": "42",
 		"desktop_version": "1.2.3",
@@ -3367,7 +3367,7 @@ func TestDetailQueries(t *testing.T) {
 	// Set the last restarted at date, then change the uptime result to simulate
 	// a small drift (less than 30s). Verify that the LastRestartedAt is not updated.
 	host.LastRestartedAt = expectedLastRestartedAt
-	results["team_detail_query_uptime"] = []map[string]string{
+	results["automdm_detail_query_uptime"] = []map[string]string{
 		{
 			"days":          "21",
 			"hours":         "0",
@@ -3385,7 +3385,7 @@ func TestDetailQueries(t *testing.T) {
 
 	// Test again with _forward_ drift, which would push the last restarted at date
 	// back, and verify that we ignore it.
-	results["team_detail_query_uptime"] = []map[string]string{
+	results["automdm_detail_query_uptime"] = []map[string]string{
 		{
 			"days":          "0",
 			"hours":         "0",
@@ -3402,7 +3402,7 @@ func TestDetailQueries(t *testing.T) {
 	assert.LessOrEqual(t, gotHost.LastRestartedAt.Sub(expectedLastRestartedAt), 1*time.Second)
 
 	// One final test -- change the uptime to just one minute, and verify that we do update last restarted at.
-	results["team_detail_query_uptime"] = []map[string]string{
+	results["automdm_detail_query_uptime"] = []map[string]string{
 		{
 			"days":          "0",
 			"hours":         "0",
@@ -3458,9 +3458,9 @@ func TestMDMQueries(t *testing.T) {
 		name           string
 		discoveryTable string
 	}{
-		{"team_detail_query_mdm_config_profiles_darwin", "macos_profiles"},
-		{"team_detail_query_mdm_disk_encryption_key_file_darwin", "filevault_prk"},
-		{"team_detail_query_mdm_disk_encryption_key_file_lines_darwin", "file_lines"},
+		{"automdm_detail_query_mdm_config_profiles_darwin", "macos_profiles"},
+		{"automdm_detail_query_mdm_disk_encryption_key_file_darwin", "filevault_prk"},
+		{"automdm_detail_query_mdm_disk_encryption_key_file_lines_darwin", "file_lines"},
 	}
 
 	mdmEnabled := true
@@ -5555,7 +5555,7 @@ func TestLiveQueriesFailing(t *testing.T) {
 func distQueriesMapKeys(m map[string]string) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
-		keys = append(keys, strings.TrimPrefix(k, "team_detail_query_"))
+		keys = append(keys, strings.TrimPrefix(k, "automdm_detail_query_"))
 	}
 	sort.Strings(keys)
 	return keys
@@ -7948,7 +7948,7 @@ func TestSubmitDistributedQueryResultsReportsDeviceNameAfterSave(t *testing.T) {
 			}
 
 			results := map[string][]map[string]string{
-				"team_detail_query_system_info": {{
+				"automdm_detail_query_system_info": {{
 					"computer_name":      "Renamed by user",
 					"hostname":           "Renamed by user",
 					"uuid":               "mac-uuid",
@@ -7960,7 +7960,7 @@ func TestSubmitDistributedQueryResultsReportsDeviceNameAfterSave(t *testing.T) {
 				}},
 			}
 			require.NoError(t, svc.SubmitDistributedQueryResults(ctx, results,
-				map[string]automdm.OsqueryStatus{"team_detail_query_system_info": 0}, map[string]string{}, map[string]*automdm.Stats{}))
+				map[string]automdm.OsqueryStatus{"automdm_detail_query_system_info": 0}, map[string]string{}, map[string]*automdm.Stats{}))
 
 			select {
 			case <-saved:

@@ -762,7 +762,7 @@ func (s *integrationMDMTestSuite) TestMDMAppleHostDiskEncryptionWithDisabledEncr
 		distributedReq := SubmitDistributedQueryResultsRequest{
 			NodeKey: nodeKey,
 			Results: map[string][]map[string]string{
-				"team_detail_query_mdm_disk_encryption_key_file_darwin": {
+				"automdm_detail_query_mdm_disk_encryption_key_file_darwin": {
 					{
 						"encrypted":     "1",
 						"filevault_key": encryptedBase64Key,
@@ -770,7 +770,7 @@ func (s *integrationMDMTestSuite) TestMDMAppleHostDiskEncryptionWithDisabledEncr
 				},
 			},
 			Statuses: map[string]automdm.OsqueryStatus{
-				"team_detail_query_mdm_disk_encryption_key_file_darwin": 0,
+				"automdm_detail_query_mdm_disk_encryption_key_file_darwin": 0,
 			},
 		}
 		distributedResp := submitDistributedQueryResultsResponse{}
@@ -2547,8 +2547,8 @@ func (s *integrationMDMTestSuite) submitDarwinDiskEncryptionResults(nodeKey stri
 	}
 	distributedReq := SubmitDistributedQueryResultsRequest{
 		NodeKey:  nodeKey,
-		Results:  map[string][]map[string]string{"team_detail_query_disk_encryption_darwin": rows},
-		Statuses: map[string]automdm.OsqueryStatus{"team_detail_query_disk_encryption_darwin": 0},
+		Results:  map[string][]map[string]string{"automdm_detail_query_disk_encryption_darwin": rows},
+		Statuses: map[string]automdm.OsqueryStatus{"automdm_detail_query_disk_encryption_darwin": 0},
 	}
 	var distributedResp submitDistributedQueryResultsResponse
 	s.DoJSON("POST", "/api/osquery/distributed/write", distributedReq, http.StatusOK, &distributedResp)
@@ -2564,12 +2564,12 @@ func (s *integrationMDMTestSuite) submitDarwinFileVaultKey(ctx context.Context, 
 	distributedReq := SubmitDistributedQueryResultsRequest{
 		NodeKey: nodeKey,
 		Results: map[string][]map[string]string{
-			"team_detail_query_mdm_disk_encryption_key_file_darwin": {{
+			"automdm_detail_query_mdm_disk_encryption_key_file_darwin": {{
 				"encrypted":     "1",
 				"filevault_key": base64.StdEncoding.EncodeToString(encryptedKey),
 			}},
 		},
-		Statuses: map[string]automdm.OsqueryStatus{"team_detail_query_mdm_disk_encryption_key_file_darwin": 0},
+		Statuses: map[string]automdm.OsqueryStatus{"automdm_detail_query_mdm_disk_encryption_key_file_darwin": 0},
 	}
 	var distributedResp submitDistributedQueryResultsResponse
 	s.DoJSON("POST", "/api/osquery/distributed/write", distributedReq, http.StatusOK, &distributedResp)

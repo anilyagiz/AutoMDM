@@ -404,9 +404,8 @@ func TestListOutputs(t *testing.T) {
 	}
 }
 
-// fakeAutoMDM serves the endpoints Scan reads. newRoutes controls whether the
-// server knows /teams (current) or only /teams (older releases).
-func fakeAutoMDM(t *testing.T, tier string, newRoutes bool) *httptest.Server {
+// fakeAutoMDM serves the endpoints Scan reads.
+func fakeAutoMDM(t *testing.T, tier string) *httptest.Server {
 	t.Helper()
 	return httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// "team-admin" is a user with a role on a team only.
@@ -425,17 +424,11 @@ func fakeAutoMDM(t *testing.T, tier string, newRoutes bool) *httptest.Server {
 			}
 			_, _ = w.Write([]byte(`{"spec":{"secrets":[{"secret":"global"}]}}`))
 		case "/api/v1/automdm/teams":
-			if !newRoutes {
-				w.WriteHeader(http.StatusNotFound)
-				return
-			}
-			_, _ = w.Write([]byte(`{"teams":[{"id":3,"name":"💻 Workstations","secrets":[{"secret":"ws"}]},{"id":4,"name":"Empty","secrets":[]},{"id":5,"name":"Hidden","secrets":[{"secret":"********"}]}],"teams":[]}`))
-		case "/api/v1/automdm/teams":
 			if tier != "premium" {
 				w.WriteHeader(http.StatusPaymentRequired)
 				return
 			}
-			_, _ = w.Write([]byte(`{"teams":[{"id":7,"name":"Old team","secrets":[{"secret":"old"}]}]}`))
+			_, _ = w.Write([]byte(`{"teams":[{"id":3,"name":"💻 Workstations","secrets":[{"secret":"ws"}]},{"id":4,"name":"Empty","secrets":[]},{"id":5,"name":"Hidden","secrets":[{"secret":"********"}]}]}`))
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -443,7 +436,7 @@ func fakeAutoMDM(t *testing.T, tier string, newRoutes bool) *httptest.Server {
 }
 
 func TestScan(t *testing.T) {
-	srv := fakeAutoMDM(t, "premium", true)
+	srv := fakeAutoMDM(t, "premium")
 	defer srv.Close()
 	c, err := NewClient(automdmctl.Credentials{Address: srv.URL, Token: "tok", TLSSkipVerify: true})
 	if err != nil {
@@ -483,12 +476,12 @@ func TestScan(t *testing.T) {
 }
 
 func TestScanHonorsURLPrefixAndCustomHeaders(t *testing.T) {
-	inner := fakeAutoMDM(t, "premium", true)
+	inner := fakeAutoMDM(t, "premium")
 	defer inner.Close()
 	for prefix, path := range map[string]string{
 		"/automdm-prefix/": "/automdm-prefix",
 		// A reserved character must stay part of the path, not start a fragment.
-		"team#prefix": "/automdm#prefix",
+		"automdm#prefix": "/automdm#prefix",
 	} {
 		// Like a server behind an access proxy on a path prefix.
 		proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -516,7 +509,7 @@ func TestScanHonorsURLPrefixAndCustomHeaders(t *testing.T) {
 }
 
 func TestScanWithoutGlobalSecretAccess(t *testing.T) {
-	srv := fakeAutoMDM(t, "premium", true)
+	srv := fakeAutoMDM(t, "premium")
 	defer srv.Close()
 	c, err := NewClient(automdmctl.Credentials{Address: srv.URL, Token: "team-admin", TLSSkipVerify: true})
 	if err != nil {
@@ -539,7 +532,7 @@ func TestScanWithoutGlobalSecretAccess(t *testing.T) {
 }
 
 func TestScanErrorsSayWhatToFix(t *testing.T) {
-	srv := fakeAutoMDM(t, "premium", true)
+	srv := fakeAutoMDM(t, "premium")
 	defer srv.Close()
 
 	c, err := NewClient(automdmctl.Credentials{Address: srv.URL, Token: "expired", TLSSkipVerify: true})
@@ -577,22 +570,11 @@ func TestScanErrorsSayWhatToFix(t *testing.T) {
 	}
 }
 
-func TestScanOldRoutesAndFree(t *testing.T) {
-	old := fakeAutoMDM(t, "premium", false)
-	defer old.Close()
-	c, _ := NewClient(automdmctl.Credentials{Address: old.URL, Token: "tok", TLSSkipVerify: true})
-	res, err := c.Scan(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(res.Teams) != 2 || res.Teams[1].Name != "Old team" {
-		t.Errorf("old routes teams = %+v", res.Teams)
-	}
-
-	free := fakeAutoMDM(t, "free", true)
+func TestScanFree(t *testing.T) {
+	free := fakeAutoMDM(t, "free")
 	defer free.Close()
-	c, _ = NewClient(automdmctl.Credentials{Address: free.URL, Token: "tok", TLSSkipVerify: true})
-	res, err = c.Scan(context.Background())
+	c, _ := NewClient(automdmctl.Credentials{Address: free.URL, Token: "tok", TLSSkipVerify: true})
+	res, err := c.Scan(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}

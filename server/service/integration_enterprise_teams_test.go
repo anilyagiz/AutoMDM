@@ -2866,10 +2866,10 @@ func (s *integrationEnterpriseTestSuite) TestTeamConfigIgnoresStoredDetailQueryO
 	s.lq.On("QueriesForHost", linuxHost.ID).Return(map[string]string{}, nil)
 	var dqResp getDistributedQueriesResponse
 	s.DoJSON("POST", "/api/osquery/distributed/read", getDistributedQueriesRequest{NodeKey: *linuxHost.NodeKey}, http.StatusOK, &dqResp)
-	require.Contains(t, dqResp.Queries, "team_detail_query_users")
-	require.Contains(t, dqResp.Queries, "team_detail_query_disk_encryption_linux")
-	require.Contains(t, dqResp.Queries, "team_detail_query_software_linux")
-	require.NotEqual(t, "select * from blah;", dqResp.Queries["team_detail_query_software_linux"])
+	require.Contains(t, dqResp.Queries, "automdm_detail_query_users")
+	require.Contains(t, dqResp.Queries, "automdm_detail_query_disk_encryption_linux")
+	require.Contains(t, dqResp.Queries, "automdm_detail_query_software_linux")
+	require.NotEqual(t, "select * from blah;", dqResp.Queries["automdm_detail_query_software_linux"])
 
 	// Saves re-marshal the whole config from the struct, so the stale key disappears without a migration.
 	s.Do("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), automdm.TeamPayload{Description: new("saved")}, http.StatusOK)

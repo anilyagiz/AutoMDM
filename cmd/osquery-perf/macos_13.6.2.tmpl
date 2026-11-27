@@ -58,7 +58,7 @@
 }
 {{- end }}
 
-{{ define "team_detail_query_network_interface_unix" -}}
+{{ define "automdm_detail_query_network_interface_unix" -}}
 [
   {
     "address":"fe80::8cb:112d:ff51:1e5d%en0",
@@ -66,7 +66,7 @@
   }
 ]
 {{- end }}
-{{ define "team_detail_query_os_version" -}}
+{{ define "automdm_detail_query_os_version" -}}
 [
   {
     "name":"macOS",
@@ -81,7 +81,7 @@
   }
 ]
 {{- end }}
-{{ define "team_detail_query_os_unix_like" -}}
+{{ define "automdm_detail_query_os_unix_like" -}}
 [
   {
     "name":"macOS",
@@ -96,7 +96,7 @@
   }
 ]
 {{- end }}
-{{ define "team_detail_query_osquery_flags" -}}
+{{ define "automdm_detail_query_osquery_flags" -}}
 [
   {
     "name":"config_refresh",
@@ -112,7 +112,7 @@
   }
 ]
 {{- end }}
-{{ define "team_detail_query_osquery_info" -}}
+{{ define "automdm_detail_query_osquery_info" -}}
 [
   {
     "pid":"11287",
@@ -130,7 +130,7 @@
   }
 ]
 {{- end }}
-{{ define "team_detail_query_system_info" -}}
+{{ define "automdm_detail_query_system_info" -}}
 [
   {
     "hostname":"{{ .CachedString "hostname" }}",
@@ -151,7 +151,7 @@
   }
 ]
 {{- end }}
-{{ define "team_detail_query_uptime" -}}
+{{ define "automdm_detail_query_uptime" -}}
 [
   {
     "days":"0",
@@ -163,7 +163,7 @@
 ]
 {{- end }}
 
-{{ define "team_detail_query_timezone_unix" -}}
+{{ define "automdm_detail_query_timezone_unix" -}}
 [
   {
     "symlink_target_path":"/var/db/timezone/zoneinfo/America/New_York"
@@ -171,7 +171,7 @@
 ]
 {{- end }}
 
-{{ define "team_detail_query_disk_encryption_key_darwin" -}}
+{{ define "automdm_detail_query_disk_encryption_key_darwin" -}}
 {{- if .DiskEncryptionEnabled }}
 [
   {"line": "MIAGCSqGSIb3DQEHA6CAMIACAQAxggFtMIIBaQIBADBRMEgxHzAdBgNVBAMMFkZpbGVWYXVsdCBSZWNvdmVyeSBLZXkxJTAjBgNVBA0MHFJvYmVydG9zLU1hY0Jvb2stUHJvLTIubG9jYWwCBQCovxm3MA0GCSqGSIb3DQEBAQUABIIBAHiz8IGpXp+vqfTes7ejbvS11XpnaHCxDeaMYjmEJgZKtwdQhOJZy9clsypwqFv6h/Cva3/SuOEcwBoS2N/YY766jDP8nU4OcUaZWqEcMhRsSs1mil4T+rTnUfQEUKU9xW1j/iFq3xVWDTaBY+5cBgwUmdZb8XoWhXUVoF73OD0NpitnXxsxHokXv+UZzPoydlsCzhfAngl11hELAuFe6/mfq801E1hT+zvzDEDvfwSBMDC14OGDoFORVe/HCBS3NFGpVV+IrqpIpT1wbNx2dazmngduviErpXTgZG2vrCMQN1rN0OeLRtOMcjE6rer+ruuc5hfvTGMwWOgteqd2YQUwgAYJKoZIhvcNAQcBMBQGCCqGSIb3DQMHBAhwRO3eyigWMaCABBhy88Lm9qisQ9sOaf8u8GSzoWFdw2LkjRMECAKJG0H5K6iTAAAAAAAAAAAAAA=="},
@@ -181,7 +181,7 @@
 {{- end }}
 {{- end }}
 
-{{ define "team_detail_query_mdm_config_profiles_darwin" -}}
+{{ define "automdm_detail_query_mdm_config_profiles_darwin" -}}
 []
 {{- end }}
 

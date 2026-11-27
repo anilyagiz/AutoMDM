@@ -52,7 +52,7 @@
 }
 {{- end }}
 
-{{ define "team_detail_query_network_interface_unix" -}}
+{{ define "automdm_detail_query_network_interface_unix" -}}
 [
   {
     "address":"fe80::8cb:112d:ff51:1e5d%en0",
@@ -60,7 +60,7 @@
   }
 ]
 {{- end }}
-{{ define "team_detail_query_os_version" -}}
+{{ define "automdm_detail_query_os_version" -}}
 [
   {
     "arch": "x86_64",
@@ -76,7 +76,7 @@
   }
 ]
 {{- end }}
-{{ define "team_detail_query_os_unix_like" -}}
+{{ define "automdm_detail_query_os_unix_like" -}}
 [
   {
     "name":"Red Hat Enterprise Linux",
@@ -92,7 +92,7 @@
   }
 ]
 {{- end }}
-{{ define "team_detail_query_osquery_flags" -}}
+{{ define "automdm_detail_query_osquery_flags" -}}
 [
   {
     "name":"config_refresh",
@@ -108,7 +108,7 @@
   }
 ]
 {{- end }}
-{{ define "team_detail_query_osquery_info" -}}
+{{ define "automdm_detail_query_osquery_info" -}}
 [
   {
     "pid":"11287",
@@ -126,7 +126,7 @@
   }
 ]
 {{- end }}
-{{ define "team_detail_query_system_info" -}}
+{{ define "automdm_detail_query_system_info" -}}
 [
   {
     "hostname":"{{ .CachedString "hostname" }}",
@@ -147,7 +147,7 @@
   }
 ]
 {{- end }}
-{{ define "team_detail_query_uptime" -}}
+{{ define "automdm_detail_query_uptime" -}}
 [
   {
     "days":"0",
@@ -159,7 +159,7 @@
 ]
 {{- end }}
 
-{{ define "team_detail_query_timezone_unix" -}}
+{{ define "automdm_detail_query_timezone_unix" -}}
 [
   {
     "symlink_target_path":"/usr/share/zoneinfo/Etc/UTC"

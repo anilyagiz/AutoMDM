@@ -88,10 +88,10 @@ func (s *integrationEnterpriseTestSuite) TestDistributedReadWithFeatures() {
 	req := getDistributedQueriesRequest{NodeKey: *host.NodeKey}
 	var dqResp getDistributedQueriesResponse
 	s.DoJSON("POST", "/api/osquery/distributed/read", req, http.StatusOK, &dqResp)
-	require.Contains(t, dqResp.Queries, "team_detail_query_users")
-	require.Contains(t, dqResp.Queries, "team_detail_query_software_macos")
-	require.Contains(t, dqResp.Queries, "team_detail_query_software_ai_tools")
-	require.Contains(t, dqResp.Discovery["team_detail_query_software_ai_tools"], "name = 'ai_tools'")
+	require.Contains(t, dqResp.Queries, "automdm_detail_query_users")
+	require.Contains(t, dqResp.Queries, "automdm_detail_query_software_macos")
+	require.Contains(t, dqResp.Queries, "automdm_detail_query_software_ai_tools")
+	require.Contains(t, dqResp.Discovery["automdm_detail_query_software_ai_tools"], "name = 'ai_tools'")
 	require.NotContains(t, dqResp.Queries, "automdm_additional_query_time")
 
 	// add the host to team1
@@ -103,9 +103,9 @@ func (s *integrationEnterpriseTestSuite) TestDistributedReadWithFeatures() {
 	req = getDistributedQueriesRequest{NodeKey: *host.NodeKey}
 	dqResp = getDistributedQueriesResponse{}
 	s.DoJSON("POST", "/api/osquery/distributed/read", req, http.StatusOK, &dqResp)
-	require.NotContains(t, dqResp.Queries, "team_detail_query_users")
-	require.NotContains(t, dqResp.Queries, "team_detail_query_software_macos")
-	require.NotContains(t, dqResp.Queries, "team_detail_query_software_ai_tools")
+	require.NotContains(t, dqResp.Queries, "automdm_detail_query_users")
+	require.NotContains(t, dqResp.Queries, "automdm_detail_query_software_macos")
+	require.NotContains(t, dqResp.Queries, "automdm_detail_query_software_ai_tools")
 	require.Contains(t, dqResp.Queries, "automdm_additional_query_time")
 }
 
@@ -469,12 +469,12 @@ func (s *integrationEnterpriseTestSuite) TestAIAgentSessionsDetailQueries() {
 
 	// No sessions stored yet: sessions are asked for, events aren't.
 	dqResp := readQueries()
-	require.Contains(t, dqResp.Queries, "team_detail_query_ai_agent_sessions")
-	require.Contains(t, dqResp.Discovery["team_detail_query_ai_agent_sessions"], "name = 'ai_agent_sessions'")
-	require.NotContains(t, dqResp.Queries, "team_detail_query_ai_agent_session_events")
+	require.Contains(t, dqResp.Queries, "automdm_detail_query_ai_agent_sessions")
+	require.Contains(t, dqResp.Discovery["automdm_detail_query_ai_agent_sessions"], "name = 'ai_agent_sessions'")
+	require.NotContains(t, dqResp.Queries, "automdm_detail_query_ai_agent_session_events")
 
 	// Every session is collected from its first call.
-	submit("team_detail_query_ai_agent_sessions", `[{
+	submit("automdm_detail_query_ai_agent_sessions", `[{
 		"agent": "claude_code", "session_id": "s1", "username": "alice", "account_identifier": "alice@example.com",
 		"started_at": "T+0", "ended_at": "T+7200", "tool_calls": "4",
 		"transcript_path": "/Users/alice/.claude/projects/app/s1.jsonl"
@@ -484,15 +484,15 @@ func (s *integrationEnterpriseTestSuite) TestAIAgentSessionsDetailQueries() {
 		"transcript_path": "/Users/alice/.claude/projects/app/s2.jsonl"
 	}]`)
 	dqResp = readQueries()
-	require.Contains(t, dqResp.Queries, "team_detail_query_ai_agent_session_events")
-	eventsQuery := dqResp.Queries["team_detail_query_ai_agent_session_events"]
+	require.Contains(t, dqResp.Queries, "automdm_detail_query_ai_agent_session_events")
+	eventsQuery := dqResp.Queries["automdm_detail_query_ai_agent_session_events"]
 	require.Contains(t, eventsQuery, "transcript_path = '/Users/alice/.claude/projects/app/s1.jsonl' AND block_type = 'tool_use' AND tool_call_index >= 0 AND tool_call_index < 10000\n")
 	require.Contains(t, eventsQuery, "transcript_path = '/Users/alice/.claude/projects/app/s2.jsonl' AND block_type = 'tool_use' AND tool_call_index >= 0")
 	require.Contains(t, eventsQuery, fmt.Sprintf("%d AS session_ended_at", base+7200))
-	require.Contains(t, dqResp.Discovery["team_detail_query_ai_agent_session_events"], "name = 'ai_agent_session_messages'")
+	require.Contains(t, dqResp.Discovery["automdm_detail_query_ai_agent_session_events"], "name = 'ai_agent_session_messages'")
 
 	// s1's call 3 was still running when read.
-	submit("team_detail_query_ai_agent_session_events", `[
+	submit("automdm_detail_query_ai_agent_session_events", `[
 		{"agent": "claude_code", "session_id": "s1", "tool_call_index": "0", "tool_name": "Read",
 		 "tool_use_id": "toolu_0", "action": "read", "target": "go.mod", "decision": "allowed", "timestamp": "T+1000",
 		 "content": "{\"file_path\":\"go.mod\"}", "content_length": "22", "truncated": "0", "session_ended_at": "T+7200"},
@@ -512,20 +512,20 @@ func (s *integrationEnterpriseTestSuite) TestAIAgentSessionsDetailQueries() {
 
 	// Both sessions are caught up, and neither has been active since: nothing to ask for.
 	dqResp = readQueries()
-	require.Contains(t, dqResp.Queries, "team_detail_query_ai_agent_sessions")
-	require.NotContains(t, dqResp.Queries, "team_detail_query_ai_agent_session_events")
+	require.Contains(t, dqResp.Queries, "automdm_detail_query_ai_agent_sessions")
+	require.NotContains(t, dqResp.Queries, "automdm_detail_query_ai_agent_session_events")
 
 	// One write on the host recorded call 3's result along with call 4: catching up comes first.
-	submit("team_detail_query_ai_agent_sessions", `[{
+	submit("automdm_detail_query_ai_agent_sessions", `[{
 		"agent": "claude_code", "session_id": "s1", "username": "alice", "account_identifier": "alice@example.com",
 		"started_at": "T+0", "ended_at": "T+10000", "tool_calls": "5",
 		"transcript_path": "/Users/alice/.claude/projects/app/s1.jsonl"
 	}]`)
 	dqResp = readQueries()
-	eventsQuery = dqResp.Queries["team_detail_query_ai_agent_session_events"]
+	eventsQuery = dqResp.Queries["automdm_detail_query_ai_agent_session_events"]
 	require.Contains(t, eventsQuery, "transcript_path = '/Users/alice/.claude/projects/app/s1.jsonl' AND block_type = 'tool_use' AND tool_call_index >= 4")
 	require.NotContains(t, eventsQuery, "s2.jsonl")
-	submit("team_detail_query_ai_agent_session_events", `[
+	submit("automdm_detail_query_ai_agent_session_events", `[
 		{"agent": "claude_code", "session_id": "s1", "tool_call_index": "4", "tool_name": "Bash",
 		 "tool_use_id": "toolu_5", "action": "execute", "target": "go test", "decision": "allowed", "timestamp": "T+9000",
 		 "content": "{\"command\":\"go test\"}", "session_ended_at": "T+10000"}
@@ -533,9 +533,9 @@ func (s *integrationEnterpriseTestSuite) TestAIAgentSessionsDetailQueries() {
 
 	// Caught up, the write that may hold call 3's decision is read again from that call.
 	dqResp = readQueries()
-	eventsQuery = dqResp.Queries["team_detail_query_ai_agent_session_events"]
+	eventsQuery = dqResp.Queries["automdm_detail_query_ai_agent_session_events"]
 	require.Contains(t, eventsQuery, "transcript_path = '/Users/alice/.claude/projects/app/s1.jsonl' AND block_type = 'tool_use' AND tool_call_index >= 3")
-	submit("team_detail_query_ai_agent_session_events", `[
+	submit("automdm_detail_query_ai_agent_session_events", `[
 		{"agent": "claude_code", "session_id": "s1", "tool_call_index": "3", "tool_name": "Agent",
 		 "tool_use_id": "toolu_3", "action": "other", "target": "", "decision": "allowed", "timestamp": "T+7000",
 		 "content": "{\"prompt\":\"explore\"}", "session_ended_at": "T+10000"},
@@ -544,7 +544,7 @@ func (s *integrationEnterpriseTestSuite) TestAIAgentSessionsDetailQueries() {
 		 "content": "{\"command\":\"go test\"}", "session_ended_at": "T+10000"}
 	]`)
 	dqResp = readQueries()
-	require.NotContains(t, dqResp.Queries, "team_detail_query_ai_agent_session_events")
+	require.NotContains(t, dqResp.Queries, "automdm_detail_query_ai_agent_session_events")
 
 	var stored []struct {
 		AgentSessionID string `db:"agent_session_id"`
@@ -592,8 +592,8 @@ func (s *integrationEnterpriseTestSuite) TestAIAgentSessionsDetailQueries() {
 		s.Do("PATCH", "/api/latest/automdm/config", json.RawMessage(`{"server_settings":{"ai_sessions_disabled":false}}`), http.StatusOK)
 	})
 	dqResp = readQueries()
-	require.NotContains(t, dqResp.Queries, "team_detail_query_ai_agent_sessions")
-	require.NotContains(t, dqResp.Queries, "team_detail_query_ai_agent_session_events")
+	require.NotContains(t, dqResp.Queries, "automdm_detail_query_ai_agent_sessions")
+	require.NotContains(t, dqResp.Queries, "automdm_detail_query_ai_agent_session_events")
 	var storedSessions int
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 		return sqlx.GetContext(ctx, q, &storedSessions, `SELECT COUNT(*) FROM host_ai_sessions WHERE host_id = ?`, host.ID)
@@ -601,7 +601,7 @@ func (s *integrationEnterpriseTestSuite) TestAIAgentSessionsDetailQueries() {
 	require.Positive(t, storedSessions)
 
 	s.Do("PATCH", "/api/latest/automdm/config", json.RawMessage(`{"server_settings":{"ai_sessions_disabled":false}}`), http.StatusOK)
-	require.Contains(t, readQueries().Queries, "team_detail_query_ai_agent_sessions")
+	require.Contains(t, readQueries().Queries, "automdm_detail_query_ai_agent_sessions")
 }
 
 func genDistributedReqWithEntraJoinUser(host *automdm.Host, userEmail string) submitDistributedQueryResultsRequestShim {
@@ -610,7 +610,7 @@ func genDistributedReqWithEntraJoinUser(host *automdm.Host, userEmail string) su
 	if userEmail != "" {
 		rows = fmt.Sprintf(`[{"user_email": "%s"}]`, userEmail)
 	}
-	results["team_detail_query_entra_join_user_windows"] = json.RawMessage(rows)
+	results["automdm_detail_query_entra_join_user_windows"] = json.RawMessage(rows)
 	return submitDistributedQueryResultsRequestShim{
 		NodeKey:  *host.NodeKey,
 		Results:  results,
