@@ -1,0 +1,135 @@
+=== RUN   TestIntegrationsMDM/TestWipeMacOSUserChannelErrorKeepsUpcomingActivities
+{"time":"2026-11-27T16:17:45.234009541Z","level":"WARN","msg":"","user":"unauthenticated","method":"POST","uri":"/api/v1/fleet/ota_enrollment?enroll_secret=TestIntegrationsMDM%2FTestWindowsUserScopedProfileRemovalAndScope","took":2933829,"machine_info_verify":"failed","machine_info_verify_reason":"certificate chain from signer \"Fleet\" is not issued by a pinned Apple device CA","lane":"ota_phase1","serial":"DS9MXDVXQY9H","udid":"DB7C07BE-85C4-40EA-A1A6-5BB55D7DC0DB","product":"MacBookPro16,1"}
+{"time":"2026-11-27T16:17:45.235911378Z","level":"INFO","msg":"scep endpoint","component":"http-mdm-apple-scep","op":"GetCACert","error":null,"took":1424172}
+{"time":"2026-11-27T16:17:45.235943668Z","level":"INFO","msg":"","component":"http-mdm-apple-scep","method":"GET","status":200,"proto":"HTTP/1.1","host":"127.0.0.1","user_agent":"Go-http-client/1.1","path":"/mdm/apple/scep?operation=GetCACert"}
+{"time":"2026-11-27T16:17:45.291535081Z","level":"INFO","msg":"scep endpoint","component":"http-mdm-apple-scep","op":"GetCACaps","error":null,"took":467478}
+{"time":"2026-11-27T16:17:45.291561801Z","level":"INFO","msg":"","component":"http-mdm-apple-scep","method":"GET","status":200,"proto":"HTTP/1.1","host":"127.0.0.1","user_agent":"Go-http-client/1.1","path":"/mdm/apple/scep?operation=GetCACaps"}
+{"time":"2026-11-27T16:17:45.302603436Z","level":"INFO","msg":"scep endpoint","component":"http-mdm-apple-scep","op":"PKIOperation","error":null,"took":10773314}
+{"time":"2026-11-27T16:17:45.30266992Z","level":"INFO","msg":"","component":"http-mdm-apple-scep","method":"POST","status":200,"proto":"HTTP/1.1","host":"127.0.0.1","user_agent":"Go-http-client/1.1","path":"/mdm/apple/scep?operation=PKIOperation"}
+ts=2026-11-27T16:17:45Z level=info msg="clearing previous mdm idp account association" host_uuid=DB7C07BE-85C4-40EA-A1A6-5BB55D7DC0DB
+{"time":"2026-11-27T16:17:45.323788556Z","level":"INFO","msg":"scep endpoint","component":"http-mdm-apple-scep","op":"GetCACert","error":null,"took":1381912}
+{"time":"2026-11-27T16:17:45.323807502Z","level":"INFO","msg":"","component":"http-mdm-apple-scep","method":"GET","status":200,"proto":"HTTP/1.1","host":"127.0.0.1","user_agent":"Go-http-client/1.1","path":"/mdm/apple/scep?operation=GetCACert"}
+{"time":"2026-11-27T16:17:45.34177277Z","level":"INFO","msg":"scep endpoint","component":"http-mdm-apple-scep","op":"GetCACaps","error":null,"took":492708}
+{"time":"2026-11-27T16:17:45.341790883Z","level":"INFO","msg":"","component":"http-mdm-apple-scep","method":"GET","status":200,"proto":"HTTP/1.1","host":"127.0.0.1","user_agent":"Go-http-client/1.1","path":"/mdm/apple/scep?operation=GetCACaps"}
+{"time":"2026-11-27T16:17:45.352559313Z","level":"INFO","msg":"scep endpoint","component":"http-mdm-apple-scep","op":"PKIOperation","error":null,"took":10548395}
+{"time":"2026-11-27T16:17:45.35264369Z","level":"INFO","msg":"","component":"http-mdm-apple-scep","method":"POST","status":200,"proto":"HTTP/1.1","host":"127.0.0.1","user_agent":"Go-http-client/1.1","path":"/mdm/apple/scep?operation=PKIOperation"}
+{"time":"2026-11-27T16:17:45.359405328Z","level":"INFO","msg":"","component":"http-mdm-apple-mdm","handler":"cert-auth","msg":"associate new enrollment","hash":"1331c414c083dc073ad4b1c1d6a5817fe490608075d526badd998177da6ba6c6","id":"DB7C07BE-85C4-40EA-A1A6-5BB55D7DC0DB"}
+{"time":"2026-11-27T16:17:45.360536864Z","level":"INFO","msg":"","component":"http-mdm-apple-mdm","handler":"cert-auth","msg":"cert associated","enrollment":"new","id":"DB7C07BE-85C4-40EA-A1A6-5BB55D7DC0DB","hash":"1331c414c083dc073ad4b1c1d6a5817fe490608075d526badd998177da6ba6c6"}
+{"time":"2026-11-27T16:17:45.360586186Z","level":"INFO","msg":"","component":"http-mdm-apple-mdm","id":"DB7C07BE-85C4-40EA-A1A6-5BB55D7DC0DB","type":1,"msg":"Authenticate","serial_number":"DS9MXDVXQY9H"}
+ts=2026-11-27T16:17:45Z level=info msg="get host mdm idp accounts: no account found" host_ids=[816]
+ts=2026-11-27T16:17:45Z level=info msg="reconcile host emails: no mdm idp account and no host emails" host_id=816 account_uuid="" manual_idp_mappings=0
+ts=2026-11-27T16:17:45Z level=debug msg="maybeAssociateHostMDMIdPWithScimUser: MDM IdP account is nil, skipping association" host_id=816
+{"time":"2026-11-27T16:17:45.385342999Z","level":"INFO","msg":"","component":"http-mdm-apple-mdm","id":"DB7C07BE-85C4-40EA-A1A6-5BB55D7DC0DB","type":1,"msg":"TokenUpdate"}
+{"time":"2026-11-27T16:17:45.387688775Z","level":"INFO","msg":"received token update","host_uuid":"DB7C07BE-85C4-40EA-A1A6-5BB55D7DC0DB"}
+{"time":"2026-11-27T16:17:45.404890094Z","level":"INFO","msg":"queueing post-enroll task for manual enrolled device","host_uuid":"DB7C07BE-85C4-40EA-A1A6-5BB55D7DC0DB"}
+{"time":"2026-11-27T16:17:45.404901425Z","level":"INFO","msg":"queuing Apple MDM job","enabled":"true","apple_mdm":"post_manual_enrollment","host_uuid":"DB7C07BE-85C4-40EA-A1A6-5BB55D7DC0DB","platform":"darwin","with_enroll_reference":false,"from_mdm_migration":false}
+{"time":"2026-11-27T16:17:45.405463666Z","level":"INFO","msg":"token update processed","host_uuid":"DB7C07BE-85C4-40EA-A1A6-5BB55D7DC0DB","enrollment_type":"Device","awaiting_configuration":true,"enqueued_setup_experience":true,"has_setup_experience_items":false,"enroll_reference_found":false,"token_update_tally":1,"host_id":816,"platform":"darwin","fleet_id":0,"dep_assigned_to_fleet":false,"installed_from_dep":false,"scep_renewal_in_progress":false,"migration_in_progress":false,"mdm_migration_deadline":null,"mdm_migration_completed":null}
+{"time":"2026-11-27T16:17:45.413356689Z","level":"INFO","msg":"","component":"http-mdm-apple-mdm","id":"DB7C07BE-85C4-40EA-A1A6-5BB55D7DC0DB:A4B9B71B-28FA-47D1-8428-F134DFA60563","type":2,"msg":"TokenUpdate"}
+{"time":"2026-11-27T16:17:45.415749622Z","level":"INFO","msg":"received token update","host_uuid":"DB7C07BE-85C4-40EA-A1A6-5BB55D7DC0DB:A4B9B71B-28FA-47D1-8428-F134DFA60563"}
+{"time":"2026-11-27T16:17:45.416388563Z","level":"ERROR","msg":"token update processed","host_uuid":"DB7C07BE-85C4-40EA-A1A6-5BB55D7DC0DB:A4B9B71B-28FA-47D1-8428-F134DFA60563","enrollment_type":"User","awaiting_configuration":false,"enqueued_setup_experience":false,"has_setup_experience_items":false,"enroll_reference_found":false,"err":"getting checkin info: : Host with UUID: DB7C07BE-85C4-40EA-A1A6-5BB55D7DC0DB:A4B9B71B-28FA-47D1-8428-F134DFA60563 was not found in the datastore"}
+{"time":"2026-11-27T16:17:45.416418179Z","level":"INFO","msg":"","component":"http-mdm-apple-mdm","id":"DB7C07BE-85C4-40EA-A1A6-5BB55D7DC0DB:A4B9B71B-28FA-47D1-8428-F134DFA60563","type":2,"sub_service":1,"err":"getting checkin info: : Host with UUID: DB7C07BE-85C4-40EA-A1A6-5BB55D7DC0DB:A4B9B71B-28FA-47D1-8428-F134DFA60563 was not found in the datastore"}
+{"time":"2026-11-27T16:17:45.456896817Z","level":"INFO","msg":"","msg":"retrieved push cert","topic":"com.apple.mgmt.External.DB7C07BE-85C4-40EA-A1A6-5BB55D7DC0DB"}
+{"time":"2026-11-27T16:17:45.463349208Z","level":"INFO","msg":"","component":"http-mdm-apple-mdm","id":"DB7C07BE-85C4-40EA-A1A6-5BB55D7DC0DB","type":1,"status":"Idle"}
+{"time":"2026-11-27T16:17:45.469117417Z","level":"INFO","msg":"","component":"http-mdm-apple-mdm","id":"DB7C07BE-85C4-40EA-A1A6-5BB55D7DC0DB:A4B9B71B-28FA-47D1-8428-F134DFA60563","type":2,"status":"Error","command_uuid":"22ab0dbf-f5c9-4437-8566-f7eb270b7e46"}
+{"time":"2026-11-27T16:17:45.469625287Z","level":"INFO","msg":"","component":"http-mdm-apple-mdm","id":"DB7C07BE-85C4-40EA-A1A6-5BB55D7DC0DB:A4B9B71B-28FA-47D1-8428-F134DFA60563","type":2,"msg":"host reported status with invalid command uuid","command_uuid":"22ab0dbf-f5c9-4437-8566-f7eb270b7e46","status":"Error","error_chain":[{"ErrorCode":1234,"ErrorDomain":"","LocalizedDescription":"","USEnglishDescription":""}]}
+{"time":"2026-11-27T16:17:45.470801107Z","level":"INFO","msg":"ignoring result for command not queued for enrollment","enrollment_id":"DB7C07BE-85C4-40EA-A1A6-5BB55D7DC0DB:A4B9B71B-28FA-47D1-8428-F134DFA60563","command_uuid":"22ab0dbf-f5c9-4437-8566-f7eb270b7e46","status":"Error"}
+ts=2026-11-27T16:17:45Z level=debug msg="cleanup orphaned software titles" rows_affected=0 took=526.033µs
+=== RUN   TestIntegrationsMDM/TestWipeWindowsCancelsUpcomingActivities
+ts=2026-11-27T16:17:45Z level=debug msg="cleanup orphaned software titles" rows_affected=0 took=464.599µs
+=== RUN   TestIntegrationsMDM/TestWipeWindowsReenrollAsNewHost
+ts=2026-11-27T16:17:46Z level=debug msg="cleanup orphaned software titles" rows_affected=0 took=505.565µs
+--- FAIL: TestIntegrationsMDM (381.56s)
+    --- PASS: TestIntegrationsMDM/TestABMAssetManagement (0.34s)
+    --- PASS: TestIntegrationsMDM/TestABMExpiredToken (0.31s)
+    --- PASS: TestIntegrationsMDM/TestABMTeamPersistsOnConfigChange (0.16s)
+--
+                --- PASS: TestIntegrationsMDM/TestBatchApplyCertificateAuthorities/hydrant/invalid_url/non-http (0.00s)
+            --- PASS: TestIntegrationsMDM/TestBatchApplyCertificateAuthorities/hydrant/duplicate_names (0.03s)
+        --- PASS: TestIntegrationsMDM/TestBatchApplyCertificateAuthorities/google_cas (0.14s)
+            --- PASS: TestIntegrationsMDM/TestBatchApplyCertificateAuthorities/google_cas/invalid_name (0.02s)
+                --- PASS: TestIntegrationsMDM/TestBatchApplyCertificateAuthorities/google_cas/invalid_name/empty (0.00s)
+                --- PASS: TestIntegrationsMDM/TestBatchApplyCertificateAuthorities/google_cas/invalid_name/NDES (0.00s)
+                --- PASS: TestIntegrationsMDM/TestBatchApplyCertificateAuthorities/google_cas/invalid_name/too_long (0.00s)
+                --- PASS: TestIntegrationsMDM/TestBatchApplyCertificateAuthorities/google_cas/invalid_name/invalid_characters (0.00s)
+            --- PASS: TestIntegrationsMDM/TestBatchApplyCertificateAuthorities/google_cas/invalid_fields (0.01s)
+                --- PASS: TestIntegrationsMDM/TestBatchApplyCertificateAuthorities/google_cas/invalid_fields/pool_with_a_slash (0.00s)
+                --- PASS: TestIntegrationsMDM/TestBatchApplyCertificateAuthorities/google_cas/invalid_fields/key_is_not_json (0.00s)
+            --- PASS: TestIntegrationsMDM/TestBatchApplyCertificateAuthorities/google_cas/duplicate_names (0.00s)
+            --- PASS: TestIntegrationsMDM/TestBatchApplyCertificateAuthorities/google_cas/google_cas_happy_path_with_activities_add_then_modify_then_delete (0.11s)
+        --- PASS: TestIntegrationsMDM/TestBatchApplyCertificateAuthorities/custom_est (0.05s)
+            --- PASS: TestIntegrationsMDM/TestBatchApplyCertificateAuthorities/custom_est/invalid_name (0.02s)
+                --- PASS: TestIntegrationsMDM/TestBatchApplyCertificateAuthorities/custom_est/invalid_name/empty (0.00s)
+                --- PASS: TestIntegrationsMDM/TestBatchApplyCertificateAuthorities/custom_est/invalid_name/NDES (0.00s)
+                --- PASS: TestIntegrationsMDM/TestBatchApplyCertificateAuthorities/custom_est/invalid_name/too_long (0.00s)
+                --- PASS: TestIntegrationsMDM/TestBatchApplyCertificateAuthorities/custom_est/invalid_name/invalid_characters (0.00s)
+            --- PASS: TestIntegrationsMDM/TestBatchApplyCertificateAuthorities/custom_est/invalid_url (0.01s)
+                --- PASS: TestIntegrationsMDM/TestBatchApplyCertificateAuthorities/custom_est/invalid_url/empty (0.00s)
+                --- PASS: TestIntegrationsMDM/TestBatchApplyCertificateAuthorities/custom_est/invalid_url/non-http (0.00s)
+            --- PASS: TestIntegrationsMDM/TestBatchApplyCertificateAuthorities/custom_est/duplicate_names (0.03s)
+        --- PASS: TestIntegrationsMDM/TestBatchApplyCertificateAuthorities/creating_a_Hydrant_CA_through_the_REST_API_records_its_name (0.02s)
+        --- PASS: TestIntegrationsMDM/TestBatchApplyCertificateAuthorities/names_that_differ_only_in_case_are_the_same_CA (0.10s)
+    --- PASS: TestIntegrationsMDM/TestBatchApplyEJBCACertificateAuthorities (0.28s)
+        --- PASS: TestIntegrationsMDM/TestBatchApplyEJBCACertificateAuthorities/custom_SCEP (0.00s)
+        --- PASS: TestIntegrationsMDM/TestBatchApplyEJBCACertificateAuthorities/custom_SCEP_in_another_case (0.00s)
+        --- PASS: TestIntegrationsMDM/TestBatchApplyEJBCACertificateAuthorities/Google_CAS (0.00s)
+    --- PASS: TestIntegrationsMDM/TestBatchAssociateAppStoreApps (2.20s)
+    --- PASS: TestIntegrationsMDM/TestBatchModifyConfigProfilesSelfServiceAndHidden (0.14s)
+    --- PASS: TestIntegrationsMDM/TestBatchModifyMDMProfiles (0.64s)
+    --- PASS: TestIntegrationsMDM/TestBatchProfilesEndpointsRequireProfileList (0.41s)
+    --- PASS: TestIntegrationsMDM/TestBatchResendMDMProfiles (1.11s)
+    --- PASS: TestIntegrationsMDM/TestBatchSetMDMProfiles (0.64s)
+    --- PASS: TestIntegrationsMDM/TestBatchSetMDMProfilesBackwardsCompat (0.34s)
+    --- PASS: TestIntegrationsMDM/TestBitLockerEnforcementNotifications (0.32s)
+    --- PASS: TestIntegrationsMDM/TestBitLockerPINAliasConflict (0.13s)
+    --- PASS: TestIntegrationsMDM/TestBitLockerPINHandoff (0.54s)
+    --- PASS: TestIntegrationsMDM/TestBitLockerPINRequiresWindowsDiskEncryption (0.14s)
+    --- FAIL: TestIntegrationsMDM/TestBlockedEndpointsForABOnlyACMEConfig (0.17s)
+        --- FAIL: TestIntegrationsMDM/TestBlockedEndpointsForABOnlyACMEConfig/blocked=true (0.04s)
+    --- PASS: TestIntegrationsMDM/TestBootstrapPackage (0.23s)
+    --- PASS: TestIntegrationsMDM/TestBootstrapPackageManualEnrollment (1.53s)
+    --- PASS: TestIntegrationsMDM/TestBootstrapPackageReplace (0.15s)
+--
+        --- PASS: TestIntegrationsMDM/TestSetupExperienceInstallerEditAndDelete/edit_installer_leaves_setup_experience_intact (0.64s)
+        --- PASS: TestIntegrationsMDM/TestSetupExperienceInstallerEditAndDelete/delete_installer_removes_setup_experience_row (0.65s)
+        --- PASS: TestIntegrationsMDM/TestSetupExperienceInstallerEditAndDelete/gitops_batch_edit_then_delete_via_/software/batch (1.67s)
+    --- PASS: TestIntegrationsMDM/TestSetupExperienceMacOSCustomDisplayNameIcon (0.72s)
+    --- PASS: TestIntegrationsMDM/TestSetupExperienceMacOSScriptOnlyPackage (0.18s)
+        --- PASS: TestIntegrationsMDM/TestSetupExperienceMacOSScriptOnlyPackage/sh_appears_in_macOS_listing (0.01s)
+        --- PASS: TestIntegrationsMDM/TestSetupExperienceMacOSScriptOnlyPackage/saving_sh_for_macOS_succeeds (0.01s)
+        --- PASS: TestIntegrationsMDM/TestSetupExperienceMacOSScriptOnlyPackage/macOS_listing_shows_sh_as_selected_after_save (0.01s)
+        --- PASS: TestIntegrationsMDM/TestSetupExperienceMacOSScriptOnlyPackage/linux_tab_selection_is_independent (0.03s)
+    --- PASS: TestIntegrationsMDM/TestSetupExperienceManagedLocalAccountKeys (0.54s)
+    --- PASS: TestIntegrationsMDM/TestSetupExperienceScript (0.22s)
+    --- PASS: TestIntegrationsMDM/TestSetupExperienceScriptResultSavedWithoutStepUpdate (0.73s)
+    --- PASS: TestIntegrationsMDM/TestSetupExperienceStatusPollsSendOneDeviceConfigured (0.84s)
+    --- PASS: TestIntegrationsMDM/TestSetupExperienceVPPCRUD (0.50s)
+    --- PASS: TestIntegrationsMDM/TestSetupExperienceVPPInstallAppleServerError (0.90s)
+    --- PASS: TestIntegrationsMDM/TestSetupExperienceVPPInstallError (0.78s)
+    --- PASS: TestIntegrationsMDM/TestSetupExperienceWithLotsOfVPPApps (1.22s)
+    --- PASS: TestIntegrationsMDM/TestSilentMigrationGotchas (0.50s)
+    --- PASS: TestIntegrationsMDM/TestSmallstepSCEPProxy (0.67s)
+    --- PASS: TestIntegrationsMDM/TestSmallstepSCEPProxyWithMicrosoftSuffix (0.52s)
+    --- PASS: TestIntegrationsMDM/TestSoftwareCategories (0.57s)
+    --- PASS: TestIntegrationsMDM/TestSoftwareInventoryForADEMacOSAfterWipeAndReenroll (1.18s)
+    --- PASS: TestIntegrationsMDM/TestSoftwarePackageTitleValidation (0.24s)
+    --- PASS: TestIntegrationsMDM/TestSoftwareTitleCustomIconsPermissions (0.29s)
+    --- PASS: TestIntegrationsMDM/TestSoftwareTitleDisplayNames (1.37s)
+    --- PASS: TestIntegrationsMDM/TestSoftwareTitleVPPAppSoftwarePackageConflict (1.35s)
+    --- PASS: TestIntegrationsMDM/TestSpecTeamsOSUpdatesDeployToHosts (1.14s)
+    --- PASS: TestIntegrationsMDM/TestStagedUpload (0.64s)
+    --- PASS: TestIntegrationsMDM/TestStickyMDMTeamEnrollment (0.52s)
+    --- PASS: TestIntegrationsMDM/TestTeamLabelsAssociationsCheck (0.76s)
+        --- PASS: TestIntegrationsMDM/TestTeamLabelsAssociationsCheck/1._policy_labels_assignment_checks (0.26s)
+        --- PASS: TestIntegrationsMDM/TestTeamLabelsAssociationsCheck/2._query_labels_assignment_checks (0.06s)
+        --- PASS: TestIntegrationsMDM/TestTeamLabelsAssociationsCheck/3._configuration_profiles_assignment_check (0.07s)
+        --- PASS: TestIntegrationsMDM/TestTeamLabelsAssociationsCheck/4._software_installers_assignment_check (0.15s)
+        --- PASS: TestIntegrationsMDM/TestTeamLabelsAssociationsCheck/5._vpp_apps_assignment_checks (0.07s)
+        --- PASS: TestIntegrationsMDM/TestTeamLabelsAssociationsCheck/6._in-house_apps_assignment_checks (0.03s)
+    --- PASS: TestIntegrationsMDM/TestTeamLabelsTeamDeletion (0.33s)
+    --- PASS: TestIntegrationsMDM/TestTeamPatchPerPlatformDiskEncryption (0.22s)
+    --- PASS: TestIntegrationsMDM/TestTeamsMDMAppleDiskEncryption (0.38s)
+    --- PASS: TestIntegrationsMDM/TestTeamsMDMRecoveryLockPassword (0.22s)
+    --- FAIL: TestIntegrationsMDM/TestTechnicianPermissions (2.05s)
+    --- PASS: TestIntegrationsMDM/TestTurnOnLifecycleEventsApple (13.37s)
+        --- PASS: TestIntegrationsMDM/TestTurnOnLifecycleEventsApple/wiped_host_turns_on_MDM (1.76s)
+            --- PASS: TestIntegrationsMDM/TestTurnOnLifecycleEventsApple/wiped_host_turns_on_MDM/manual_enrollment (0.91s)

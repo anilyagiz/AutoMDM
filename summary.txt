@@ -1,0 +1,4 @@
+--- FAIL: TestIntegrationsMDM (381.56s)
+FAIL
+FAIL	github.com/fleetdm/fleet/v4/server/service	381.661s
+FAIL
