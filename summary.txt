@@ -1,0 +1,2 @@
+ok  	github.com/fleetdm/fleet/v4/server/datastore/mysql	371.130s
+ok  	github.com/fleetdm/fleet/v4/server/datastore/mysql/migrations/tables	412.322s
