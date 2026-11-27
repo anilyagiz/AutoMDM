@@ -18,7 +18,6 @@ const teamHandler = (nameTemplate = "") =>
   http.get(baseUrl("/teams/1"), () =>
     HttpResponse.json({
       team: { id: 1, name: "Team 1", mdm: { name_template: nameTemplate } },
-      team: { id: 1, name: "Team 1", mdm: { name_template: nameTemplate } },
     })
   );
 

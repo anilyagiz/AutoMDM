@@ -1259,7 +1259,7 @@ func getTeamsYAMLFlag() cli.Flag {
 func getTeamsCommand() *cli.Command {
 	return &cli.Command{
 		Name:    "teams",
-		Aliases: []string{"team", "f"},
+		Aliases: []string{"team", "t"},
 		Usage:   "List teams",
 		Flags: []cli.Flag{
 			getTeamsJSONFlag(),

@@ -44,18 +44,11 @@ func listExistingTeams(c *Client) ([]seed.Team, error) {
 			ID   uint   `json:"id"`
 			Name string `json:"name"`
 		} `json:"teams"`
-		Teams []struct {
-			ID   uint   `json:"id"`
-			Name string `json:"name"`
-		} `json:"teams"`
 	}
 	if err := c.Get("/api/latest/automdm/teams?per_page=500", &resp); err != nil {
 		return nil, err
 	}
-	out := make([]seed.Team, 0, len(resp.Teams)+len(resp.Teams))
-	for _, t := range resp.Teams {
-		out = append(out, seed.Team{ID: t.ID, Name: t.Name})
-	}
+	out := make([]seed.Team, 0, len(resp.Teams))
 	for _, t := range resp.Teams {
 		out = append(out, seed.Team{ID: t.ID, Name: t.Name})
 	}

@@ -175,7 +175,7 @@ func testListHostPastActivities(t *testing.T, s *integrationTestSuite) {
 
 	// Create activities linked to different hosts
 	// Stored before AutoMDM 5: old keys, with the new key of a row written while both were stored.
-	actA := s.InsertActivity(t, &userID, "ran_script", map[string]any{"host": "host-a", "team_id": 5, "team_name": "Old", "team_id": 5})
+	actA := s.InsertActivity(t, &userID, "ran_script", map[string]any{"host": "host-a", "team_id": 5, "team_name": "Old"})
 	actB := s.InsertActivity(t, &userID, "installed_software", map[string]any{"host": "host-a"})
 	actC := s.InsertActivity(t, &userID, "ran_script", map[string]any{"host": "host-b"})
 

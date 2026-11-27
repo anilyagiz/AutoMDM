@@ -43,7 +43,7 @@ func applyCommand() *cli.Command {
 				Usage:       "Do not apply the file, just validate it (only supported for 'config' and 'team' specs)",
 			},
 			&cli.StringFlag{
-				Name:  "policies-automdm",
+				Name:  "policies-team",
 				Usage: "A team's name, this flag is only used on policies specs (overrides 'team' key in the policies file). This allows to easily import a group of policies to a team.",
 			},
 			configFlag(),
@@ -94,7 +94,7 @@ func applyCommand() *cli.Command {
 					DryRun: flDryRun,
 				},
 			}
-			if policiesTeamName := c.String("policies-automdm"); policiesTeamName != "" {
+			if policiesTeamName := c.String("policies-team"); policiesTeamName != "" {
 				opts.TeamForPolicies = policiesTeamName
 			}
 			baseDir := filepath.Dir(flFilename)

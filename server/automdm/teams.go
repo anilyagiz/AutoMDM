@@ -40,12 +40,11 @@ const (
 const MaxTeamNameLength = 255
 
 // IsReservedTeamName checks if the name provided is a reserved team name (case-insensitive).
-// Both old names ("No team", "All teams") and new display names ("Unassigned", "All teams")
+// Both the old name "No team" and the display names "Unassigned" and "All teams"
 // are reserved to prevent creating teams with any of these names.
 func IsReservedTeamName(name string) bool {
 	normalizedName := strings.ToLower(norm.NFC.String(name))
-	return normalizedName == "no team" || normalizedName == "all teams" ||
-		normalizedName == "unassigned" || normalizedName == "all teams"
+	return normalizedName == "no team" || normalizedName == "all teams" || normalizedName == "unassigned"
 }
 
 var reservedTeamNamesByKey = map[string]string{

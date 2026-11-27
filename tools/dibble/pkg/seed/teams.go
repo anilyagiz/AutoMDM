@@ -19,11 +19,6 @@ type teamCreateResp struct {
 		ID   uint   `json:"id"`
 		Name string `json:"name"`
 	} `json:"team"`
-	// The newer API renames "team" → "team" in some responses.
-	AutoMDM struct {
-		ID   uint   `json:"id"`
-		Name string `json:"name"`
-	} `json:"team"`
 }
 
 // Teams creates `count` teams (aka teams) and returns the resulting list.
@@ -37,9 +32,6 @@ func Teams(c Client, log Logger, theme themes.Theme, count int) ([]Team, Result)
 		var resp teamCreateResp
 		err := c.Post("/api/latest/automdm/teams", body, &resp)
 		id := resp.Team.ID
-		if id == 0 {
-			id = resp.AutoMDM.ID
-		}
 		switch {
 		case err == nil:
 			res.Created++
@@ -74,10 +66,6 @@ type listTeamsResp struct {
 		ID   uint   `json:"id"`
 		Name string `json:"name"`
 	} `json:"teams"`
-	Teams []struct {
-		ID   uint   `json:"id"`
-		Name string `json:"name"`
-	} `json:"teams"`
 }
 
 func findTeamByName(c Client, name string) (Team, error) {
@@ -85,16 +73,7 @@ func findTeamByName(c Client, name string) (Team, error) {
 	if err := c.Get("/api/latest/automdm/teams?per_page=500", &resp); err != nil {
 		return Team{}, err
 	}
-	list := resp.Teams
-	if len(list) == 0 {
-		for _, f := range resp.Teams {
-			list = append(list, struct {
-				ID   uint   `json:"id"`
-				Name string `json:"name"`
-			}{ID: f.ID, Name: f.Name})
-		}
-	}
-	for _, t := range list {
+	for _, t := range resp.Teams {
 		if t.Name == name {
 			return Team{ID: t.ID, Name: t.Name}, nil
 		}

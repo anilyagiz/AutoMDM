@@ -14,7 +14,7 @@ func TestUp_20261111205515(t *testing.T) {
 		want string
 	}{
 		{
-			name: "old keys renamed",
+			name: "assignments are kept",
 			old: `{"apple_business_manager": [
 					{"organization_name": "Org A", "macos_team": "Workstations", "ios_team": "", "ipados_team": "Tablets", "byod_team": "BYOD"},
 					{"organization_name": "Org B", "default": true, "macos_team": "", "ios_team": "", "ipados_team": "", "byod_team": ""}],
@@ -27,19 +27,12 @@ func TestUp_20261111205515(t *testing.T) {
 					{"location": "Loc A", "teams": ["Workstations", "BYOD"]}, {"location": "Loc B", "teams": []}]}`,
 		},
 		{
-			name: "new key wins over old",
-			old: `{"apple_business_manager": [{"organization_name": "Org A", "macos_team": "Old", "macos_team": "New"}],
-				"volume_purchasing_program": [{"location": "Loc A", "teams": ["Old"], "teams": ["New"]}]}`,
-			want: `{"apple_business_manager": [{"organization_name": "Org A", "macos_team": "New"}],
-				"volume_purchasing_program": [{"location": "Loc A", "teams": ["New"]}]}`,
-		},
-		{
 			name: "null and missing lists",
 			old:  `{"apple_business_manager": null}`,
 			want: `{"apple_business_manager": null}`,
 		},
 		{
-			name: "already migrated",
+			name: "single entry",
 			old:  `{"apple_business_manager": [{"organization_name": "Org A", "macos_team": "Workstations"}]}`,
 			want: `{"apple_business_manager": [{"organization_name": "Org A", "macos_team": "Workstations"}]}`,
 		},

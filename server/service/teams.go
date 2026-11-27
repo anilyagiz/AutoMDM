@@ -496,13 +496,12 @@ func (svc *Service) ModifyTeamEnrollSecrets(ctx context.Context, teamID uint, se
 	return nil, automdm.ErrMissingLicense
 }
 
-// removedAutoMDMName returns the error reason when name is "No team", or "All teams" for a caller that accepts "All teams".
+// removedAutoMDMName returns the error reason when name is "No team". "All teams" is the current name of all teams, so it is
+// never rejected; acceptsAllTeams is kept for the callers.
 func removedAutoMDMName(name string, acceptsAllTeams bool) (string, bool) {
-	switch {
-	case strings.EqualFold(name, automdm.ReservedNameNoTeam):
+	_ = acceptsAllTeams
+	if strings.EqualFold(name, automdm.ReservedNameNoTeam) {
 		return removednames.Message(fmt.Sprintf("%q", automdm.ReservedNameNoTeam), fmt.Sprintf("%q", automdm.DisplayNameNoTeam)), true
-	case acceptsAllTeams && strings.EqualFold(name, automdm.ReservedNameAllTeams):
-		return removednames.Message(fmt.Sprintf("%q", automdm.ReservedNameAllTeams), fmt.Sprintf("%q", automdm.DisplayNameAllTeams)), true
 	}
 	return "", false
 }

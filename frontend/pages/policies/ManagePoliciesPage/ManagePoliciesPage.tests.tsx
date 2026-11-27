@@ -31,7 +31,7 @@ const getAutoMDMHandler = () =>
       id: automdmId,
       name: `AutoMDM ${automdmId}`,
     };
-    return HttpResponse.json({ team: team, team });
+    return HttpResponse.json({ team });
   });
 
 const getTeamId = (request: Request) => {

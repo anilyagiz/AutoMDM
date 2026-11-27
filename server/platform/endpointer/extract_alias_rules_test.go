@@ -56,12 +56,12 @@ func (s *extractAliasRulesSuite) TestSingleRenametoTag() {
 func (s *extractAliasRulesSuite) TestRenametoInlineOption() {
 	type inlineAlias struct {
 		Tokens []string `json:"abm_tokens" renameto:"ab_tokens,inline"`
-		TeamID uint     `json:"team_id"`
+		TeamID uint     `json:"team_id" renameto:"fleet_id"`
 	}
 	rules := ExtractAliasRules(inlineAlias{})
 	s.Require().Equal([]AliasRule{
 		{OldKey: "abm_tokens", NewKey: "ab_tokens", Inline: true},
-		{OldKey: "team_id", NewKey: "team_id"},
+		{OldKey: "team_id", NewKey: "fleet_id"},
 	}, rules)
 }
 

@@ -225,24 +225,14 @@ func (c *Client) Scan(ctx context.Context) (ScanResult, error) {
 	return res, nil
 }
 
-// listTeams lists teams on current servers (/teams) and falls back to the
-// pre-rename /teams route for older releases. The response carries the list
-// under "teams", "teams", or both. Only the first 1000 are read, far more
-// than a test server has.
+// listTeams lists teams. Only the first 1000 are read, far more than a test server has.
 func (c *Client) listTeams(ctx context.Context) ([]apiTeam, error) {
 	var resp struct {
 		Teams []apiTeam `json:"teams"`
-		Teams []apiTeam `json:"teams"`
 	}
 	err := c.get(ctx, "/api/v1/automdm/teams?per_page=1000", &resp)
-	if hasStatus(err, http.StatusNotFound, http.StatusMethodNotAllowed) {
-		err = c.get(ctx, "/api/v1/automdm/teams?per_page=1000", &resp)
-	}
 	if err != nil {
 		return nil, fmt.Errorf("list teams: %w", err)
-	}
-	if len(resp.Teams) > 0 {
-		return resp.Teams, nil
 	}
 	return resp.Teams, nil
 }

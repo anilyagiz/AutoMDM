@@ -19,11 +19,11 @@ type removedKeysInner struct {
 }
 
 type removedKeysRequest struct {
-	NewID       uint              `json:"new_id" removedkey:"old_id,oldid"`
-	AutoMDMName string            `json:"team_name"`
-	Setup       *removedKeysInner `json:"setup"`
-	Settings    []removedKeysInner
-	Name        string `json:"name" renameto:"display_name"`
+	NewID     uint              `json:"new_id" removedkey:"old_id,oldid"`
+	FleetName string            `json:"fleet_name" removedkey:"team_name"`
+	Setup     *removedKeysInner `json:"setup"`
+	Settings  []removedKeysInner
+	Name      string `json:"name" renameto:"display_name"`
 }
 
 func TestExtractRemovedKeyRules(t *testing.T) {

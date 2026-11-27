@@ -405,7 +405,7 @@ func TestUp_20261117141344(t *testing.T) {
 						"not an object",
 					},
 					"volume_purchasing_program": []any{
-						map[string]any{"location": "Loc", "teams": []string{renamed}, "teams": []string{"Workstations", renamed}},
+						map[string]any{"location": "Loc", "teams": []string{"Workstations", renamed}},
 						map[string]any{"location": "Loc", "teams": nil},
 						map[string]any{"location": "Loc", "teams": "not a list"},
 						map[string]any{"location": "Loc", "teams": []any{1, nil, renamed}},

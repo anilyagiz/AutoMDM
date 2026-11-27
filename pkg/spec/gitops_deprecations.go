@@ -34,21 +34,10 @@ var DeprecatedGitOpsKeyMappings = []DeprecatedKeyMapping{
 	// API output (automdmctl get and automdmctl apply) but are not gitops input keys. They are
 	// included here so that buildAliasRules can derive them. The paths are leaf-only (no dots)
 	// since they don't participate in ApplyDeprecatedKeyMappings traversal.
-	{"available_teams", "available_teams"},
-	{"default_team", "default_team"},
-	{"host_team_id", "host_team_id"},
-	{"ios_team_id", "ios_team_id"},
-	{"ipados_team_id", "ipados_team_id"},
-	{"macos_team_id", "macos_team_id"},
 	{"query_count", "report_count"},
 	{"query_id", "report_id"},
 	{"query_ids", "report_ids"},
 	{"query_name", "report_name"},
-	{"team", "team"},
-	{"team_id", "team_id"},
-	{"team_ids_by_name", "team_ids_by_name"},
-	{"team_ids", "team_ids"},
-	{"team_name", "team_name"},
 }
 
 // DeprecatedGitOpsKeyScopes confines a leaf rename to the objects it belongs to, keyed by the leaf name buildAliasRules
@@ -64,11 +53,6 @@ var DeprecatedGitOpsKeyScopes = map[string][]string{}
 // Every path has an entry in pkg/removednames, which supplies the error message.
 var RemovedGitOpsKeys = []DeprecatedKeyMapping{
 	{"team_settings", "settings"},
-	{"org_settings.mdm.apple_business[].macos_team", "org_settings.mdm.apple_business[].macos_team"},
-	{"org_settings.mdm.apple_business[].ios_team", "org_settings.mdm.apple_business[].ios_team"},
-	{"org_settings.mdm.apple_business[].ipados_team", "org_settings.mdm.apple_business[].ipados_team"},
-	{"org_settings.mdm.apple_business[].byod_team", "org_settings.mdm.apple_business[].byod_team"},
-	{"org_settings.mdm.volume_purchasing_program[].teams", "org_settings.mdm.volume_purchasing_program[].teams"},
 	{"org_settings.webhook_settings.failing_policies_webhook.policy_ids", ""},
 	{"settings.webhook_settings.failing_policies_webhook.policy_ids", ""},
 }

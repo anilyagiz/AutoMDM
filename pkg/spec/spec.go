@@ -253,9 +253,6 @@ func GroupFromBytes(b []byte, options ...GroupFromBytesOpts) (*Group, error) {
 		case automdm.UserRolesKind:
 			return nil, removedNameError(removednames.KindSpecKind, automdm.UserRolesKind)
 
-		case automdm.TeamKind:
-			return nil, removedNameError(removednames.KindSpecKind, "team")
-
 		case automdm.AutoMDMKind:
 			// unmarshal to a raw map as we don't want to strip away unknown/invalid
 			// fields at this point - that validation is done in the apply spec/teams
@@ -264,10 +261,6 @@ func GroupFromBytes(b []byte, options ...GroupFromBytesOpts) (*Group, error) {
 			if err := yaml.Unmarshal(s.Spec, &rawTeam); err != nil {
 				return nil, fmt.Errorf("unmarshaling %s spec: %w", kind, err)
 			}
-			if _, ok := rawTeam["team"]; ok {
-				return nil, removedNameError(removednames.KindYAMLKey, "spec.team")
-			}
-
 			var (
 				teamRaw json.RawMessage
 				err     error
