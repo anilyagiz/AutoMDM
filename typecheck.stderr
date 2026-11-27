@@ -1,0 +1,4 @@
+go: downloading golang.org/x/tools v0.51.0
+go: downloading golang.org/x/sync v0.24.0
+go: downloading golang.org/x/mod v0.41.0
+typecheck: 1152 packages loaded, 0 with errors, 0 errors
