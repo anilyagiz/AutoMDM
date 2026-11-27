@@ -1,0 +1,5 @@
+--- FAIL: TestIntegrations (66.80s)
+--- FAIL: TestIntegrationsSMTP (1.33s)
+FAIL
+FAIL	github.com/fleetdm/fleet/v4/server/service	94.395s
+FAIL
