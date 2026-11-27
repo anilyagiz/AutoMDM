@@ -1,0 +1,5 @@
+--- FAIL: TestIntegrations (66.80s)
+--- FAIL: TestIntegrationsSMTP (1.30s)
+FAIL
+FAIL	github.com/anilyagiz/automdm/v4/server/service	93.967s
+FAIL

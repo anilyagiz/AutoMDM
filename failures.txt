@@ -1,0 +1,135 @@
+ts=2026-11-27T16:11:47Z level=debug msg="cleanup orphaned software titles" rows_affected=0 took=385.808µs
+=== RUN   TestIntegrations/TestUserWithWrongRoleErrors
+time=2026-11-27T16:11:47.300Z level=ERROR msg="" user=admin1@example.com method=POST uri=/api/latest/automdm/users/admin took=820.697µs err="create user: validate role: invalid global role: wrongrole" uuid=8f1228f2-6a58-424c-9d5c-e140aab357a3
+ts=2026-11-27T16:11:47Z level=debug msg="cleanup orphaned software titles" rows_affected=0 took=443.913µs
+=== RUN   TestIntegrations/TestUserWithoutRoleErrors
+time=2026-11-27T16:11:47.332Z level=ERROR msg="" user=admin1@example.com method=POST uri=/api/latest/automdm/users/admin took=756.628µs err="create user: validate role: either global role or team role needs to be defined" uuid=d177d03a-3404-4444-97da-e0a4c825cc63
+ts=2026-11-27T16:11:47Z level=debug msg="cleanup orphaned software titles" rows_affected=0 took=348.483µs
+=== RUN   TestIntegrations/TestUsers
+time=2026-11-27T16:11:47.436Z level=ERROR msg="fire activity webhook to http://some/url" err="failed to POST to http://some/url: Post \"http://some/url\": dial tcp: lookup some on 127.0.0.53:53: server misbehaving, request-size=239"
+time=2026-11-27T16:11:47.436Z level=ERROR msg="fire activity webhook to http://some/url" err="failed to POST to http://some/url: Post \"http://some/url\": dial tcp: lookup some on 127.0.0.53:53: server misbehaving, request-size=269"
+time=2026-11-27T16:11:48.444Z level=ERROR msg="fire activity webhook to http://some/url" err="failed to POST to http://some/url: Post \"http://some/url\": dial tcp: lookup some on 127.0.0.53:53: server misbehaving, request-size=191"
+time=2026-11-27T16:11:49.435Z level=INFO msg="" method=POST uri=/api/latest/automdm/login took=1.001879955s op=login email=extra@asd.com public_ip=127.0.0.1 internal="client with no MFA email support" uuid=61730fbb-dcbf-44f3-800f-6c2438959ad1
+time=2026-11-27T16:11:49.446Z level=ERROR msg="fire activity webhook to http://some/url" err="failed to POST to http://some/url: Post \"http://some/url\": dial tcp: lookup some on 127.0.0.53:53: server misbehaving, request-size=191"
+time=2026-11-27T16:11:50.438Z level=INFO msg="" method=POST uri=/api/latest/automdm/login took=1.001646731s op=login email=extra@asd.com public_ip=127.0.0.1 internal="invalid password" uuid=0ac6f5ee-bd20-460b-9262-f95601a57bb6
+time=2026-11-27T16:11:50.444Z level=ERROR msg="fire activity webhook to http://some/url" err="failed to POST to http://some/url: Post \"http://some/url\": dial tcp: lookup some on 127.0.0.53:53: server misbehaving, request-size=200"
+time=2026-11-27T16:11:51.440Z level=INFO msg="" method=POST uri=/api/latest/automdm/login took=1.00179182s op=login email=does-not-exist@asd.com public_ip=127.0.0.1 internal="user not found" uuid=501ccd4e-7193-49f1-abd3-429709268740
+time=2026-11-27T16:11:51.449Z level=INFO msg="" method=POST uri=/api/latest/automdm/login took=7.721886ms op=login email=extra@asd.com public_ip=127.0.0.1
+time=2026-11-27T16:11:51.451Z level=ERROR msg="fire activity webhook to http://some/url" err="failed to POST to http://some/url: Post \"http://some/url\": dial tcp: lookup some on 127.0.0.53:53: server misbehaving, request-size=192"
+time=2026-11-27T16:11:51.458Z level=ERROR msg="fire activity webhook to http://some/url" err="failed to POST to http://some/url: Post \"http://some/url\": dial tcp: lookup some on 127.0.0.53:53: server misbehaving, request-size=176"
+time=2026-11-27T16:11:52.465Z level=INFO msg="" method=POST uri=/api/latest/automdm/login took=7.785209ms op=login email=extra@asd.com public_ip=127.0.0.1
+time=2026-11-27T16:11:52.479Z level=ERROR msg="fire activity webhook to http://some/url" err="failed to POST to http://some/url: Post \"http://some/url\": dial tcp: lookup some on 127.0.0.53:53: server misbehaving, request-size=192"
+time=2026-11-27T16:11:53.486Z level=INFO msg="" method=POST uri=/api/latest/automdm/login took=7.887366ms op=login email=extra@asd.com public_ip=127.0.0.1
+time=2026-11-27T16:11:53.491Z level=ERROR msg="fire activity webhook to http://some/url" err="failed to POST to http://some/url: Post \"http://some/url\": dial tcp: lookup some on 127.0.0.53:53: server misbehaving, request-size=176"
+time=2026-11-27T16:11:53.550Z level=INFO msg="" method=POST uri=/api/latest/automdm/login took=7.691106ms op=login email=extra@asd.com public_ip=127.0.0.1
+time=2026-11-27T16:11:53.558Z level=ERROR msg="fire activity webhook to http://some/url" err="failed to POST to http://some/url: Post \"http://some/url\": dial tcp: lookup some on 127.0.0.53:53: server misbehaving, request-size=177"
+time=2026-11-27T16:11:53.574Z level=INFO msg="" method=POST uri=/api/latest/automdm/login took=7.739258ms op=login email=extra@asd.com public_ip=127.0.0.1
+time=2026-11-27T16:11:53.577Z level=INFO msg="" user=extra@asd.com method=POST uri=/api/latest/automdm/logout took=935.02µs
+time=2026-11-27T16:11:53.578Z level=INFO msg="" user=unauthenticated method=POST uri=/api/latest/automdm/logout took=5.739µs internal="context key not set" uuid=1dfea815-0560-496e-9c15-806ecce7da33
+time=2026-11-27T16:11:53.582Z level=ERROR msg="fire activity webhook to http://some/url" err="failed to POST to http://some/url: Post \"http://some/url\": dial tcp: lookup some on 127.0.0.53:53: server misbehaving, request-size=177"
+time=2026-11-27T16:11:53.588Z level=ERROR msg="fire activity webhook to http://some/url" err="failed to POST to http://some/url: Post \"http://some/url\": dial tcp: lookup some on 127.0.0.53:53: server misbehaving, request-size=191"
+time=2026-11-27T16:11:54.581Z level=INFO msg="" method=POST uri=/api/latest/automdm/login took=1.00081794s op=login email=extra@asd.com public_ip=127.0.0.1 internal="invalid password" uuid=b38ff556-e65b-42bd-98b0-23b7b6f2e8df
+time=2026-11-27T16:11:54.600Z level=ERROR msg="fire activity webhook to http://some/url" err="failed to POST to http://some/url: Post \"http://some/url\": dial tcp: lookup some on 127.0.0.53:53: server misbehaving, request-size=240"
+ts=2026-11-27T16:11:54Z level=debug msg="cleanup orphaned software titles" rows_affected=0 took=359.088µs
+=== RUN   TestIntegrations/TestVulnerabilitiesWebhookConfig
+ts=2026-11-27T16:11:54Z level=debug msg="cleanup orphaned software titles" rows_affected=0 took=335.624µs
+=== RUN   TestIntegrations/TestVulnerableSoftware
+ts=2026-11-27T16:11:54Z level=error msg="unrecognized platform" hostID=314 platform=""
+time=2026-11-27T16:11:54.730Z level=INFO msg="request error" path=/api/latest/automdm/software/versions took=36.614µs internal="" timestamp=2026-11-27T16:11:54Z uuid=e4d52191-886c-4e6e-989f-c68fc1ed086b err=": negative page value"
+time=2026-11-27T16:11:54.732Z level=INFO msg="request error" path=/api/latest/automdm/software/versions took=44.235µs internal="" timestamp=2026-11-27T16:11:54Z uuid=707d8beb-53f0-437a-9ff9-4b9e10f77d74 err=": invalid per_page value"
+ts=2026-11-27T16:11:54Z level=debug msg="cleanup orphaned software titles" rows_affected=3 took=1.497122ms
+--- FAIL: TestIntegrations (66.80s)
+    --- PASS: TestIntegrations/TestAIToolFieldOmittedOnFree (0.24s)
+    --- PASS: TestIntegrations/TestActivitiesWebhookConfig (0.08s)
+    --- PASS: TestIntegrations/TestActivityUserEmailPersistsAfterDeletion (0.06s)
+--
+        --- PASS: TestIntegrations/TestListHostUpcomingActivities/[]string{"per_page",_"2",_"page",_"1"} (0.00s)
+        --- PASS: TestIntegrations/TestListHostUpcomingActivities/[]string{"per_page",_"2",_"page",_"2"} (0.00s)
+        --- PASS: TestIntegrations/TestListHostUpcomingActivities/[]string{"per_page",_"2",_"page",_"3"} (0.00s)
+        --- PASS: TestIntegrations/TestListHostUpcomingActivities/[]string{"per_page",_"3"} (0.00s)
+        --- PASS: TestIntegrations/TestListHostUpcomingActivities/[]string{"per_page",_"3",_"page",_"1"} (0.00s)
+        --- PASS: TestIntegrations/TestListHostUpcomingActivities/[]string{"per_page",_"3",_"page",_"2"} (0.00s)
+    --- PASS: TestIntegrations/TestListHosts (1.51s)
+        --- PASS: TestIntegrations/TestListHosts/order_by_team_name (0.02s)
+    --- PASS: TestIntegrations/TestListHostsByLabel (0.09s)
+    --- PASS: TestIntegrations/TestListHostsDeviceMappingSize (0.09s)
+    --- PASS: TestIntegrations/TestListHostsPopulateEndUsers (0.06s)
+    --- PASS: TestIntegrations/TestListHostsPopulateSoftwareWithInstalledPaths (0.07s)
+    --- PASS: TestIntegrations/TestListSoftwareAndSoftwareDetails (0.83s)
+    --- PASS: TestIntegrations/TestListVulnerabilities (0.21s)
+    --- PASS: TestIntegrations/TestLogLoginAttempts (1.07s)
+    --- PASS: TestIntegrations/TestMDMAnyMiddlewareAccess (0.05s)
+    --- PASS: TestIntegrations/TestMDMNotConfiguredEndpoints (0.24s)
+    --- PASS: TestIntegrations/TestManualLabelMembershipNotRemovableByHost (0.13s)
+    --- PASS: TestIntegrations/TestModifyAPIOnlyUser (0.08s)
+    --- PASS: TestIntegrations/TestModifyUser (0.23s)
+    --- PASS: TestIntegrations/TestModifyUserAPIOnlyRejected (0.07s)
+        --- PASS: TestIntegrations/TestModifyUserAPIOnlyRejected/regular_user_api_only_false (0.00s)
+        --- PASS: TestIntegrations/TestModifyUserAPIOnlyRejected/regular_user_api_only_true (0.00s)
+        --- PASS: TestIntegrations/TestModifyUserAPIOnlyRejected/api-only_user_api_only_false (0.00s)
+        --- PASS: TestIntegrations/TestModifyUserAPIOnlyRejected/api-only_user_api_only_true (0.00s)
+    --- PASS: TestIntegrations/TestOSVersions (0.32s)
+    --- PASS: TestIntegrations/TestOrbitConfigExtensions (0.12s)
+    --- PASS: TestIntegrations/TestOrbitConfigNotifications (0.13s)
+    --- PASS: TestIntegrations/TestOrbitDebugLoggingOnEnroll (0.11s)
+    --- PASS: TestIntegrations/TestOrgLogoUpload (0.23s)
+    --- PASS: TestIntegrations/TestOsqueryBodySizeLimit (0.99s)
+        --- PASS: TestIntegrations/TestOsqueryBodySizeLimit/config_overrides_take_effect_in_body-auth_mode (0.08s)
+        --- PASS: TestIntegrations/TestOsqueryBodySizeLimit/header-auth_mode_imposes_no_body_size_limit (0.10s)
+        --- PASS: TestIntegrations/TestOsqueryBodySizeLimit/endpoint_request_size_overrides_wins_over_the_osquery_per-route_default_in_body-auth_mode (0.22s)
+        --- PASS: TestIntegrations/TestOsqueryBodySizeLimit/endpoint_request_size_overrides_wins_over_an_explicitly_configured_osquery_max_*_body_size__when_larger (0.17s)
+        --- PASS: TestIntegrations/TestOsqueryBodySizeLimit/explicitly_configured_osquery_max_*_body_size_wins_when_larger_than_endpoint_request_size_overrides (0.16s)
+        --- PASS: TestIntegrations/TestOsqueryBodySizeLimit/endpoint_request_size_overrides_does_not_apply_in_header-auth_mode (0.14s)
+    --- PASS: TestIntegrations/TestOsqueryConfig (0.09s)
+    --- PASS: TestIntegrations/TestOsqueryConfigETag (0.13s)
+    --- PASS: TestIntegrations/TestOsqueryConfigPackCacheLabelScopedQueries (0.15s)
+    --- FAIL: TestIntegrations/TestPasswordReset (1.05s)
+    --- PASS: TestIntegrations/TestPingEndpoints (0.06s)
+    --- PASS: TestIntegrations/TestPolicyDeletionLogsActivity (0.08s)
+    --- PASS: TestIntegrations/TestPremiumEndpointsWithoutLicense (0.20s)
+--
+	/home/runner/go/pkg/mod/github.com/prometheus/client_golang@v1.23.2/prometheus/promhttp/instrument_server.go:109 +0xc5
+net/http.HandlerFunc.ServeHTTP(0x130?, {0x7077790?, 0x1ef540e881e0?}, 0x30?)
+	/opt/hostedtoolcache/go/1.27.4/x64/src/net/http/server.go:2362 +0x29
+github.com/anilyagiz/automdm/v4/server/platform/endpointer.(*Router).Handle.func1({0x7077790?, 0x1ef540e881e0?}, 0x3f9a901?)
+	/home/runner/work/AutoMDM/AutoMDM/server/platform/endpointer/router.go:259 +0x36
+net/http.HandlerFunc.ServeHTTP(0x7082568?, {0x7077790?, 0x1ef540e881e0?}, 0x3f9a928?)
+	/opt/hostedtoolcache/go/1.27.4/x64/src/net/http/server.go:2362 +0x29
+github.com/anilyagiz/automdm/v4/server/service.useRouteMiddleware.func3.1({0x7077790, 0x1ef540e881e0}, 0x1ef5464dd900)
+	/home/runner/work/AutoMDM/AutoMDM/server/service/handler.go:229 +0x1f8
+net/http.HandlerFunc.ServeHTTP(0x70825a0?, {0x7077790?, 0x1ef540e881e0?}, 0x7783b00?)
+	/opt/hostedtoolcache/go/1.27.4/x64/src/net/http/server.go:2362 +0x29
+github.com/anilyagiz/automdm/v4/server/platform/endpointer.(*registeredRoute).serve(0x1ef53eefc600, {0x7077790, 0x1ef540e881e0}, 0x1ef5464dd7c0)
+	/home/runner/work/AutoMDM/AutoMDM/server/platform/endpointer/router.go:63 +0x18a
+github.com/anilyagiz/automdm/v4/server/platform/endpointer.(*registeredRoute).ServeHTTP(0x1ef53eefc600, {0x7077790, 0x1ef540e881e0}, 0x1ef5464dd7c0)
+	/home/runner/work/AutoMDM/AutoMDM/server/platform/endpointer/router.go:71 +0x65
+net/http.(*ServeMux).ServeHTTP(0x1ef55f276c70?, {0x7077790, 0x1ef540e881e0}, 0x1ef5464dd7c0)
+	/opt/hostedtoolcache/go/1.27.4/x64/src/net/http/server.go:2927 +0x1cf
+github.com/anilyagiz/automdm/v4/server/platform/endpointer.(*Router).ServeHTTP(0x1ef53ede9bc0?, {0x7077790?, 0x1ef540e881e0?}, 0x7d217d685108?)
+	/home/runner/work/AutoMDM/AutoMDM/server/platform/endpointer/router.go:220 +0x25
+net/http.(*ServeMux).ServeHTTP(0x87be40?, {0x7077790, 0x1ef540e881e0}, 0x1ef5464dd7c0)
+	/opt/hostedtoolcache/go/1.27.4/x64/src/net/http/server.go:2927 +0x1cf
+net/http.serverHandler.ServeHTTP({0x10?}, {0x7077790?, 0x1ef540e881e0?}, 0x1?)
+	/opt/hostedtoolcache/go/1.27.4/x64/src/net/http/server.go:3440 +0x8e
+net/http.(*conn).serve(0x1ef540e74870, {0x7082568, 0x1ef5414e0a50})
+	/opt/hostedtoolcache/go/1.27.4/x64/src/net/http/server.go:2161 +0x6dc
+created by net/http.(*Server).Serve in goroutine 122032
+	/opt/hostedtoolcache/go/1.27.4/x64/src/net/http/server.go:3608 +0x4fd
+    http.go:42: 
+        	Error Trace:	/home/runner/work/AutoMDM/AutoMDM/server/test/httptest/http.go:42
+        	            				/home/runner/work/AutoMDM/AutoMDM/server/service/testing_client_test.go:329
+        	            				/home/runner/work/AutoMDM/AutoMDM/server/service/testing_client_test.go:337
+        	            				/home/runner/work/AutoMDM/AutoMDM/server/service/testing_client_test.go:313
+        	            				/home/runner/work/AutoMDM/AutoMDM/server/service/testing_client_test.go:347
+        	            				/home/runner/work/AutoMDM/AutoMDM/server/service/integration_smtp_test.go:47
+        	            				/opt/hostedtoolcache/go/1.27.4/x64/src/reflect/value.go:586
+        	            				/opt/hostedtoolcache/go/1.27.4/x64/src/reflect/value.go:369
+        	            				/home/runner/go/pkg/mod/github.com/stretchr/testify@v1.12.1/suite/suite.go:212
+        	Error:      	Received unexpected error:
+        	            	Patch "http://127.0.0.1:42447/api/latest/automdm/config": EOF
+        	Test:       	TestIntegrationsSMTP/TestSMTPValidation
+--- FAIL: TestIntegrationsSMTP (1.30s)
+    --- FAIL: TestIntegrationsSMTP/TestSMTPValidation (0.00s)
+=== RUN   TestIntegrationsSSO
+time=2026-11-27T16:12:14.605Z level=INFO msg="" method=POST uri=/api/latest/automdm/login took=71.657705ms op=login email=admin1@example.com public_ip=127.0.0.1
+=== RUN   TestIntegrationsSSO/TestGetSSOSettings
