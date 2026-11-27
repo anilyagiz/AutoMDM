@@ -1,0 +1,149 @@
+# Build verification for the AutoMDM rebrand.
+#
+# Runs on pushes to rebrand/** branches and on manual dispatch only. It answers one question:
+# does the renamed tree still type-check and build? Each job publishes its full logs to an
+# orphan branch (ci-logs-rebrand-go, ci-logs-rebrand-js) so they can be read with plain git.
+# Delete this workflow and those branches once the rebrand has been merged.
+name: AutoMDM verify
+
+on:
+  push:
+    branches:
+      - "rebrand/**"
+  workflow_dispatch:
+
+concurrency:
+  group: automdm-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+permissions: {}
+
+jobs:
+  go:
+    name: Go type-check and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write # to publish the logs branch
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: go.mod
+
+      - name: Type-check every package, tests included
+        run: |
+          mkdir -p /tmp/logs
+          go version | tee /tmp/logs/go-version.log
+          go run ./tools/rebrand/typecheck -o /tmp/logs/typecheck.log ./... > /dev/null 2> /tmp/logs/typecheck.stderr || true
+          tail -5 /tmp/logs/typecheck.stderr
+          tail -1 /tmp/logs/typecheck.log || true
+
+      - name: go build
+        run: |
+          set +e
+          go build -gcflags=-e ./... > /tmp/logs/build.log 2>&1
+          echo "exit=$?" | tee -a /tmp/logs/build.log
+          tail -40 /tmp/logs/build.log
+
+      - name: Unit tests that need no database
+        if: ${{ hashFiles('tools/rebrand/ci-go-tests.txt') != '' }}
+        run: |
+          set +e
+          pkgs=$(grep -v '^#' tools/rebrand/ci-go-tests.txt | tr '\n' ' ')
+          go test -count=1 $pkgs > /tmp/logs/test.log 2>&1
+          echo "exit=$?" | tee -a /tmp/logs/test.log
+          grep -E '^(FAIL|ok|---|panic)' /tmp/logs/test.log | tail -60
+
+      - name: Publish logs
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd /tmp/logs
+          echo "$GITHUB_SHA" > SHA
+          date -u +%FT%TZ > FINISHED
+          git init -q
+          git checkout -q -b ci-logs-rebrand-go
+          git add -A
+          git -c user.name="automdm-verify" -c user.email="noreply@github.com" commit -q -m "verify logs (go) for $GITHUB_SHA"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" ci-logs-rebrand-go
+
+      - name: Fail when the build failed
+        run: grep -q '^exit=0$' /tmp/logs/build.log
+
+  js:
+    name: Front end type-check and bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write # to publish the logs branch
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Node
+        uses: actions/setup-node@5e21ff4d9bc1a8cf6de233a3057d20ec6b3fb69d # v3.8.1
+        with:
+          node-version-file: package.json
+
+      - name: Install dependencies
+        run: |
+          mkdir -p /tmp/logs
+          node --version | tee /tmp/logs/node-version.log
+          yarn install --frozen-lockfile --network-timeout 300000 > /tmp/logs/yarn-install.log 2>&1 || { tail -30 /tmp/logs/yarn-install.log; exit 1; }
+
+      - name: Generate the osquery SQL parser
+        run: yarn generate:osquery-sql-parser
+
+      - name: tsc
+        run: |
+          set +e
+          yarn -s tsc --noEmit -p tsconfig.json > /tmp/logs/tsc.log 2>&1
+          echo "exit=$?" | tee -a /tmp/logs/tsc.log
+          tail -40 /tmp/logs/tsc.log
+
+      - name: webpack bundle
+        run: |
+          set +e
+          NODE_ENV=production yarn -s webpack > /tmp/logs/webpack.log 2>&1
+          echo "exit=$?" | tee -a /tmp/logs/webpack.log
+          grep -iE 'error|not found|cannot' /tmp/logs/webpack.log | head -60
+
+      - name: Jest tests
+        if: ${{ hashFiles('tools/rebrand/ci-js-tests.txt') != '' }}
+        run: |
+          set +e
+          yarn -s jest --config ./frontend/test/jest.config.js --ci $(grep -v '^#' tools/rebrand/ci-js-tests.txt | tr '\n' ' ') > /tmp/logs/jest.log 2>&1
+          echo "exit=$?" | tee -a /tmp/logs/jest.log
+          tail -60 /tmp/logs/jest.log
+
+      - name: Publish logs
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd /tmp/logs
+          echo "$GITHUB_SHA" > SHA
+          date -u +%FT%TZ > FINISHED
+          git init -q
+          git checkout -q -b ci-logs-rebrand-js
+          git add -A
+          git -c user.name="automdm-verify" -c user.email="noreply@github.com" commit -q -m "verify logs (js) for $GITHUB_SHA"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" ci-logs-rebrand-js
+
+      - name: Fail when tsc or webpack failed
+        run: |
+          grep -q '^exit=0$' /tmp/logs/tsc.log
+          grep -q '^exit=0$' /tmp/logs/webpack.log
