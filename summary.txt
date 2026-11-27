@@ -1,0 +1,1 @@
+ok  	github.com/fleetdm/fleet/v4/server/service	315.184s
