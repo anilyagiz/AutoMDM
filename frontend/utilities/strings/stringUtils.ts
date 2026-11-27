@@ -19,6 +19,7 @@ const capitalizeRole = (str: UserRole): UserRole => {
 };
 
 export const STYLIZATIONS_AND_ACRONYMS = [
+  "AutoMDM",
   "macOS",
   "iOS",
   "iPadOS",

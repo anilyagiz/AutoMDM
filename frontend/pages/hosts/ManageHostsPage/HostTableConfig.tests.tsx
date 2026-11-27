@@ -445,7 +445,6 @@ describe("HostTableConfig - Team column", () => {
     }).map((h) => (h as Column<IHost>).id);
 
     expect(ids).toContain("team_name");
-    expect(ids).not.toContain("team_name");
     expect(toTeamColumnId("team_name")).toBe("team_name");
     expect(toTeamColumnId("hostname")).toBe("hostname");
   });

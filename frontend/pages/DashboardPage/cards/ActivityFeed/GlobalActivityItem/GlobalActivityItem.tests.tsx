@@ -645,7 +645,7 @@ describe("Activity Feed", () => {
     expect(screen.getByText("maintainer")).toBeInTheDocument();
     expect(screen.getByText(/for the/)).toBeInTheDocument();
     expect(screen.getByText(/Test Team/)).toBeInTheDocument();
-    expect(screen.getByText(/automdm\./)).toBeInTheDocument();
+    expect(screen.getByText(/team\./)).toBeInTheDocument();
     expect(screen.queryByText("for all teams.")).toBeNull();
   });
 
@@ -3202,7 +3202,7 @@ describe("Activity Feed", () => {
       )
     ).toBeInTheDocument();
     expect(screen.getByText(/Bears/i)).toBeInTheDocument();
-    expect(screen.getByText(/automdm/i)).toBeInTheDocument();
+    expect(screen.getByText(/team/i)).toBeInTheDocument();
   });
   it("renders a createdSetupExperienceScript type activity for a team", () => {
     const activity = createMockActivity({
@@ -3250,7 +3250,7 @@ describe("Activity Feed", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/macOS/i)).toBeInTheDocument();
     expect(screen.getByText(/Lions/i)).toBeInTheDocument();
-    expect(screen.getByText(/automdm/i)).toBeInTheDocument();
+    expect(screen.getByText(/team/i)).toBeInTheDocument();
   });
   it("renders a disabledMacosUpdateNewHosts activity for a team", () => {
     const activity = createMockActivity({
@@ -3266,7 +3266,7 @@ describe("Activity Feed", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/macOS/i)).toBeInTheDocument();
     expect(screen.getByText(/Lions/i)).toBeInTheDocument();
-    expect(screen.getByText(/automdm/i)).toBeInTheDocument();
+    expect(screen.getByText(/team/i)).toBeInTheDocument();
   });
 
   it("renders an enabled_gitops_exception activity", () => {

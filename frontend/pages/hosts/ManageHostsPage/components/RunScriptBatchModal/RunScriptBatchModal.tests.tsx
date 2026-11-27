@@ -159,7 +159,7 @@ describe("RunScriptBatchModal", () => {
 
     expect(await screen.findByText("No scripts available")).toBeInTheDocument();
     expect(screen.getByText("Add a script")).toBeInTheDocument();
-    expect(screen.getByText(/to this automdm/)).toBeInTheDocument();
+    expect(screen.getByText(/to this team/)).toBeInTheDocument();
   });
 
   describe("after clicking run script", () => {

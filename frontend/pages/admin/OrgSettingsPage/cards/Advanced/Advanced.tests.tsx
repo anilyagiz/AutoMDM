@@ -215,7 +215,7 @@ describe("Advanced settings — MCP server", () => {
 
   it("links the MCP server help text to the guide", () => {
     renderAdvanced();
-    expect(screen.getByText(/ask questions about your automdm/)).toBeVisible();
+    expect(screen.getByText(/ask questions about your devices/)).toBeVisible();
     const guideLinks = screen
       .getAllByRole("link", { name: /learn more/i })
       .filter(

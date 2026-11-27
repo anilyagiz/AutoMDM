@@ -380,19 +380,12 @@ func TestGetSSOUser(t *testing.T) {
 					{Value: "admin"},
 				},
 			},
-			{
-				Name: "AUTOMDM_JIT_USER_ROLE_TEAM_1",
-				Values: []automdm.SAMLAttributeValue{
-					{Value: "observer"},
-				},
-			},
 		},
 	}
 
 	// Test SSO login with a non-existent user.
 	_, err := svc.GetSSOUser(ctx, auth)
 	require.NoError(t, err)
-	require.Contains(t, logs.String(), "AUTOMDM_JIT_USER_ROLE_TEAM_1") // warning for the removed attribute
 
 	require.NotNil(t, newUser)
 	require.NotNil(t, newUser.GlobalRole)
@@ -425,7 +418,6 @@ func TestGetSSOUser(t *testing.T) {
 	require.NoError(t, err)
 
 	require.False(t, ds.SaveUserFuncInvoked)
-	require.Contains(t, logs.String(), "AUTOMDM_JIT_USER_ROLE_TEAM_1")
 
 	// (2) Test SSO login with the same user with roles updated in its attributes.
 

@@ -27,7 +27,7 @@ describe("string utilities", () => {
         enforceAutoMDMSentenceCasing("osquery shouldn't be Capitalized")
       ).toEqual("osquery shouldn't be capitalized");
     });
-    expect(enforceAutoMDMSentenceCasing("team uses MySQL")).toEqual(
+    expect(enforceAutoMDMSentenceCasing("AutoMDM Uses MySQL")).toEqual(
       "AutoMDM uses MySQL"
     );
   });

@@ -33,7 +33,7 @@ export const formatAlreadyAvailableInstallMessage = (msg: string) => {
   if (fmaMatch) {
     return (
       <>
-        {ADD_SOFTWARE_ERROR_PREFIX} <b>{fmaMatch[1]}</b> already has a
+        {ADD_SOFTWARE_ERROR_PREFIX} <b>{fmaMatch[1]}</b> already has an
         AutoMDM-maintained app on the <b>{fmaMatch[2]}</b> team.
       </>
     );

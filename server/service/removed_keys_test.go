@@ -12,9 +12,9 @@ import (
 
 func TestRemovedKeyMessage(t *testing.T) {
 	// A registered name takes its message from its entry, whatever format the entry uses.
-	entry, ok := removednames.Find(removednames.KindJSONKey, "team_name", "")
+	entry, ok := removednames.Find(removednames.KindJSONKey, "macos_settings", "")
 	require.True(t, ok)
-	require.EqualError(t, &endpointer.RemovedKeyError{Key: "team_name"}, entry.Message())
+	require.EqualError(t, &endpointer.RemovedKeyError{Key: "macos_settings"}, entry.Message())
 
 	// Any other name, or a registered one in another letter case, gets the standard AutoMDM 5 wording.
 	require.EqualError(t, &endpointer.RemovedKeyError{Key: "Require_All_Software_Macos"},

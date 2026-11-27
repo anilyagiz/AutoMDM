@@ -343,13 +343,22 @@ type QueryParamish<T> = keyof T extends string
     }
   : never;
 
+// The rebrand kept some team-scoped parameter names as automdmId, automdmIds and automdmName (teamId and friends were
+// already taken), so they are sent under the team names the API expects.
+const API_PARAM_NAMES: Record<string, string> = {
+  automdm_id: "team_id",
+  automdm_ids: "team_ids",
+  automdm_name: "team_name",
+};
+
 export const convertParamsToSnakeCase = <T extends QueryParamish<T>>(
   params: T
 ) => {
   return reduce<typeof params, QueryParams>(
     params,
     (result, val, key) => {
-      result[snakeCase(key)] = val;
+      const snakeKey = snakeCase(key);
+      result[API_PARAM_NAMES[snakeKey] ?? snakeKey] = val;
       return result;
     },
     {}

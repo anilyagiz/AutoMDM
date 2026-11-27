@@ -57,13 +57,13 @@ describe("TransferHostModal", () => {
   it("shows Add a team link when user is global admin", () => {
     setup({ isGlobalAdmin: true });
 
-    expect(screen.getByText(/Add an automdm/i)).toBeInTheDocument();
+    expect(screen.getByText(/Add a team/i)).toBeInTheDocument();
   });
 
   it("does not show Add a team link when not global admin", () => {
     setup({ isGlobalAdmin: false });
 
-    expect(screen.queryByText(/Add an automdm/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Add a team/i)).not.toBeInTheDocument();
   });
 
   it("disables Transfer button until a team is selected", () => {
@@ -76,7 +76,7 @@ describe("TransferHostModal", () => {
   it("filters out current host team from dropdown options and includes No team when allowed", async () => {
     const { user } = setup({ hostsTeamId: 1 });
 
-    const dropdown = screen.getByText(/Select an automdm/i);
+    const dropdown = screen.getByText(/Select a team/i);
 
     await user.click(dropdown);
 
@@ -88,7 +88,7 @@ describe("TransferHostModal", () => {
   it("does not allow transferring to No team again when host is already on no team", async () => {
     const { user } = setup({ hostsTeamId: 0 });
 
-    const dropdown = screen.getByText(/Select an automdm/i);
+    const dropdown = screen.getByText(/Select a team/i);
     await user.click(dropdown);
 
     expect(screen.queryByText("Unassigned")).not.toBeInTheDocument();
@@ -107,7 +107,7 @@ describe("TransferHostModal", () => {
       hostsTeamId: 4,
     });
 
-    await user.click(screen.getByText(/Select an automdm/i));
+    await user.click(screen.getByText(/Select a team/i));
 
     const options = await screen.findAllByTestId("dropdown-option");
     expect(options.map((option) => option.textContent)).toEqual([
@@ -121,7 +121,7 @@ describe("TransferHostModal", () => {
   it("enables Transfer after selecting a team and calls onSubmit with selected team", async () => {
     const { user, onSubmit } = setup({ hostsTeamId: 1 });
 
-    const dropdown = screen.getByText(/Select an automdm/i);
+    const dropdown = screen.getByText(/Select a team/i);
 
     // Custom dropdown path: open then click an option
     await user.click(dropdown);
@@ -138,7 +138,7 @@ describe("TransferHostModal", () => {
   it("supports selecting No team and passes through the no-team object shape", async () => {
     const { user, onSubmit } = setup({ hostsTeamId: 1 });
 
-    const dropdown = screen.getByText(/Select an automdm/i);
+    const dropdown = screen.getByText(/Select a team/i);
     await user.click(dropdown);
     const options = await screen.findAllByTestId("dropdown-option");
     const noTeamOption = options.find((el) =>

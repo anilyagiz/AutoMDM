@@ -280,7 +280,7 @@ describe("AutoMDMsDropdown - component", () => {
 
       await user.click(getTrigger(/AutoMDM 1/));
       expect(
-        screen.queryByRole("button", { name: /add automdm/i })
+        screen.queryByRole("button", { name: /add team/i })
       ).not.toBeInTheDocument();
     });
 
@@ -296,7 +296,7 @@ describe("AutoMDMsDropdown - component", () => {
       );
 
       await user.click(getTrigger(/AutoMDM 1/));
-      const addButton = screen.getByRole("button", { name: /add automdm/i });
+      const addButton = screen.getByRole("button", { name: /add team/i });
       expect(addButton).toHaveTextContent("Add team");
 
       await user.click(addButton);
@@ -315,7 +315,7 @@ describe("AutoMDMsDropdown - component", () => {
       );
 
       await user.click(getTrigger(/AutoMDM 1/));
-      const addButton = screen.getByRole("button", { name: /add automdm/i });
+      const addButton = screen.getByRole("button", { name: /add team/i });
       expect(addButton).toHaveTextContent("Add team");
 
       await user.click(addButton);
@@ -343,7 +343,7 @@ describe("AutoMDMsDropdown - component", () => {
       );
 
       await user.click(getTrigger(/AutoMDM 1/));
-      const addButton = screen.getByRole("button", { name: /add automdm/i });
+      const addButton = screen.getByRole("button", { name: /add team/i });
       fireEvent.keyDown(addButton, { key: "Enter" });
       fireEvent.click(addButton);
 
@@ -377,7 +377,7 @@ describe("AutoMDMsDropdown - component", () => {
 
       await user.click(getTrigger(/AutoMDM 1/));
       expect(
-        screen.queryByRole("button", { name: /add automdm/i })
+        screen.queryByRole("button", { name: /add team/i })
       ).not.toBeInTheDocument();
     });
 
@@ -395,7 +395,7 @@ describe("AutoMDMsDropdown - component", () => {
 
       await user.click(getTrigger(/AutoMDM 1/));
       expect(
-        screen.queryByRole("button", { name: /add automdm/i })
+        screen.queryByRole("button", { name: /add team/i })
       ).not.toBeInTheDocument();
     });
 
@@ -419,7 +419,7 @@ describe("AutoMDMsDropdown - component", () => {
 
       await user.click(getTrigger(/AutoMDM 1/));
       expect(
-        screen.queryByRole("button", { name: /add automdm/i })
+        screen.queryByRole("button", { name: /add team/i })
       ).not.toBeInTheDocument();
     });
   });

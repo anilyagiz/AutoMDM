@@ -75,7 +75,7 @@ describe("EditVersionModal", () => {
     await user.tab();
     expect(
       await screen.findByText(
-        /A version with this name already exists on this automdm/i
+        /A version with this name already exists on this team/i
       )
     ).toBeInTheDocument();
   });

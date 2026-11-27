@@ -145,7 +145,7 @@ const FeaturesSection = ({
                 <>
                   Connect AutoMDM&apos;s MCP server to your AI harness (Claude,
                   Codex, Copilot, etc.) so that you can ask questions about your
-                  team.{" "}
+                  devices.{" "}
                   <CustomLink
                     url="https://automdm.com/guides/automdm-mcp"
                     text="Learn more"

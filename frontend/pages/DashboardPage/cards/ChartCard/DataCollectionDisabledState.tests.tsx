@@ -106,7 +106,7 @@ describe("DataCollectionDisabledState", () => {
     expect(screen.getByText(/Ask an admin to turn on/i)).toBeInTheDocument();
     // Scope tracks the user's team context, not where the fix lives — a
     // team-admin viewing their team's dashboard shouldn't see "all teams".
-    expect(screen.getByText(/for this automdm/i)).toBeInTheDocument();
+    expect(screen.getByText(/for this team/i)).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /Turn on/i })
     ).not.toBeInTheDocument();
@@ -127,6 +127,6 @@ describe("DataCollectionDisabledState", () => {
     expect(
       screen.getByRole("button", { name: /Turn on/i })
     ).toBeInTheDocument();
-    expect(screen.getByText(/for this automdm/i)).toBeInTheDocument();
+    expect(screen.getByText(/for this team/i)).toBeInTheDocument();
   });
 });
