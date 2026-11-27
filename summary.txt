@@ -1,0 +1,1 @@
+ok  	github.com/anilyagiz/automdm/v4/server/service	275.349s
