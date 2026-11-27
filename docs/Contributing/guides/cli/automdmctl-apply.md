@@ -131,7 +131,7 @@ Another reason you might want to use multiple enroll secrets is to use a certain
 
 **Applies only to AutoMDM Premium**.
 
-The `automdm` YAML file controls a team of hosts.
+The `team` YAML file controls a team of hosts.
 
 You can define one or more team in the same file with `---`.
 

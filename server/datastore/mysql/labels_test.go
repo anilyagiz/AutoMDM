@@ -4591,7 +4591,7 @@ func testListLabelsOrderKeys(t *testing.T, ds *Datastore) {
 	}
 
 	t.Run("rejects_unknown_key", func(t *testing.T) {
-		for _, key := range []string{"l.id; SELECT 1", "team_id"} {
+		for _, key := range []string{"l.id; SELECT 1", "no_such_key"} {
 			_, err := ds.ListLabels(ctx, filter, automdm.ListOptions{OrderKey: key}, false)
 			require.Error(t, err)
 		}

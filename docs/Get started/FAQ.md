@@ -192,9 +192,9 @@ If you set up GitOps before AutoMDM version 4.82.0, you may see deprecation warn
 [!] 'queries' is deprecated; use 'reports' instead
 ```
 
-To migrate from queries to reports, teams to teams, etc. and take care of any of these deprecation warnings, you can use `grep -ri "team" . --exclude-dir=.git` to search your GitOps folder for a term (in this case `team`), then edit the files and update the references to `automdm`. Be cautious about using a general find-and-replace command to do this for all files at once, as you may end up unintentionally replacing something incorrectly. Note that in some cases the word is plural (team vs. teams) or may be in all caps (teams vs. TEAMS).
+To migrate from queries to reports and take care of any of these deprecation warnings, you can use `grep -ri "query" . --exclude-dir=.git` to search your GitOps folder for a term (in this case `query`), then edit the files and update the references to `report`. Be cautious about using a general find-and-replace command to do this for all files at once, as you may end up unintentionally replacing something incorrectly. Note that in some cases the word is plural (query vs. queries) or may be in all caps (QUERIES).
 
-If you used the `teams/` directory to organize your ~~teams~~ teams, use `git mv teams teams` to _rename_ the folder. This is critical, as renaming with the file manager, the standard `mv` command, or GitHub Desktop will not cause git to initiate a _rename_ command, and will instead _delete_ and then _create_ files/folders, which will cause AutoMDM to delete the ~~teams~~ teams and move all your devices into Unassigned.
+If you are moving from Fleet 5, which called teams "fleets", rename a `fleets/` directory with `git mv fleets teams`. This is critical, as renaming with the file manager, the standard `mv` command, or GitHub Desktop will not cause git to initiate a _rename_ command, and will instead _delete_ and then _create_ files/folders, which will cause AutoMDM to delete the teams and move all your devices into Unassigned.
 
 
 ## What version of the Mac Admins osquery extension is supported?

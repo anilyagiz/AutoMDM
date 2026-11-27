@@ -533,7 +533,7 @@ func (s *integrationSSOTestSuite) TestSSOLoginSAMLResponseTampered() {
 	require.NoError(t, err)
 
 	tamperedSAMLResponseDecoded := strings.ReplaceAll(string(samlResponseDecoded), idpUsername, "sso_us3r2")
-	tamperedSAMLResponseEncoded := base64.RawStdEncoding.EncodeToString([]byte(tamperedSAMLResponseDecoded))
+	tamperedSAMLResponseEncoded := base64.StdEncoding.EncodeToString([]byte(tamperedSAMLResponseDecoded))
 
 	res = s.doWithClient(client, "POST", "/api/v1/automdm/sso/callback", nil, http.StatusOK, nil, "SAMLResponse", tamperedSAMLResponseEncoded)
 	defer res.Body.Close()
