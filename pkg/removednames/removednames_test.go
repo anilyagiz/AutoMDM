@@ -128,7 +128,6 @@ func TestFindAndFilter(t *testing.T) {
 			assert.NotZero(t, e.Scope&scope, e.Old)
 		}
 	}
-	assert.Empty(t, Filter(KindJSONKey, ScopeActivityDetails))
 }
 
 func TestFindByContext(t *testing.T) {

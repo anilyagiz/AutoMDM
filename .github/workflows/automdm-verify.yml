@@ -85,7 +85,7 @@ jobs:
           set +e
           go test -count=1 -timeout 120m ./... > /tmp/logs/test.log 2>&1
           echo "exit=$?" | tee -a /tmp/logs/test.log
-          grep -E "^(FAIL|--- FAIL|panic)" /tmp/logs/test.log | head -100
+          grep -E "^(FAIL|--- FAIL|panic)" /tmp/logs/test.log | head -100 || true
 
       - name: MySQL tests
         if: matrix.suite == 'mysql'
@@ -93,7 +93,7 @@ jobs:
           set +e
           MYSQL_TEST=1 go test -count=1 -timeout 150m ./server/datastore/mysql/... > /tmp/logs/test.log 2>&1
           echo "exit=$?" | tee -a /tmp/logs/test.log
-          grep -E "^(FAIL|--- FAIL|panic)" /tmp/logs/test.log | head -100
+          grep -E "^(FAIL|--- FAIL|panic)" /tmp/logs/test.log | head -100 || true
 
       - name: Publish logs
         if: always()
@@ -110,7 +110,10 @@ jobs:
           git checkout -q -b "$BRANCH"
           git add -A
           git -c user.name="automdm-verify" -c user.email="noreply@github.com" commit -q -m "verify logs for $GITHUB_SHA"
-          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$BRANCH"
+          for i in 1 2 3; do
+            git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$BRANCH" && break
+            sleep 10
+          done
 
       - name: Fail when the build failed
         if: matrix.tree == 'rebrand' && matrix.suite == 'unit'
@@ -161,14 +164,14 @@ jobs:
           set +e
           NODE_ENV=production yarn -s webpack > /tmp/logs/webpack.log 2>&1
           echo "exit=$?" | tee -a /tmp/logs/webpack.log
-          grep -iE 'error|not found|cannot' /tmp/logs/webpack.log | head -60
+          grep -iE 'error|not found|cannot' /tmp/logs/webpack.log | head -60 || true
 
       - name: Jest tests
         run: |
           set +e
           yarn -s jest --config ./frontend/test/jest.config.js --ci --silent > /tmp/logs/jest.log 2>&1
           echo "exit=$?" | tee -a /tmp/logs/jest.log
-          grep -E "^(FAIL|Tests:|Test Suites:)" /tmp/logs/jest.log | head -80
+          grep -E "^(FAIL|Tests:|Test Suites:)" /tmp/logs/jest.log | head -80 || true
 
       - name: Publish logs
         if: always()
@@ -185,7 +188,10 @@ jobs:
           git checkout -q -b "$BRANCH"
           git add -A
           git -c user.name="automdm-verify" -c user.email="noreply@github.com" commit -q -m "verify logs for $GITHUB_SHA"
-          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$BRANCH"
+          for i in 1 2 3; do
+            git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$BRANCH" && break
+            sleep 10
+          done
 
       - name: Fail when tsc or webpack failed
         if: matrix.tree == 'rebrand'

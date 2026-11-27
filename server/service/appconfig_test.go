@@ -2000,7 +2000,7 @@ func TestMDMConfig(t *testing.T) {
 			newMDM: automdm.MDM{
 				EndUserAuthentication: automdm.MDMEndUserAuthentication{
 					SSOProviderSettings: automdm.SSOProviderSettings{
-						EntityID: "  team  ",
+						EntityID: "  automdm  ",
 						Metadata: "  not-empty\r\n",
 						IDPName:  "  onelogin  ",
 					},

@@ -1760,7 +1760,7 @@ func TestFindLatestCVEReleaseTag(t *testing.T) {
 	find := func(t *testing.T, releases []release) (string, []url.Values, error) {
 		var queries []url.Values
 		gh := newTestGitHubClient(t, releasesServer(releases, &queries))
-		tag, err := findLatestCVEReleaseTag(t.Context(), gh, "automdm")
+		tag, err := findLatestCVEReleaseTag(t.Context(), gh, "fleetdm")
 		return tag, queries, err
 	}
 	// requireRequests asserts the number of requests, all using the small page size
@@ -1816,7 +1816,7 @@ func TestFindLatestCVEReleaseTag(t *testing.T) {
 			w.WriteHeader(http.StatusForbidden)
 			_, _ = w.Write([]byte(`{"message":"API rate limit exceeded for 20.184.150.249. (But here's the good news: Authenticated requests get a higher rate limit. Check out the documentation for more details.)","documentation_url":"https://docs.github.com/rest/overview/resources-in-the-rest-api#rate-limiting"}`))
 		})
-		_, err := findLatestCVEReleaseTag(t.Context(), gh, "automdm")
+		_, err := findLatestCVEReleaseTag(t.Context(), gh, "fleetdm")
 		rlErr, ok := errors.AsType[*github.RateLimitError](err)
 		require.True(t, ok, "expected *github.RateLimitError, got %T: %v", err, err)
 		require.True(t, reset.Equal(rlErr.Rate.Reset.Time), "reset %s, want %s", rlErr.Rate.Reset.Time, reset)

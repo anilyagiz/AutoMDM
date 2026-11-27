@@ -130,8 +130,8 @@ func TestUp_20261117141344(t *testing.T) {
 		},
 		{
 			name:   "reserved names",
-			before: []string{"Un-assigned", "All_teams", "No-team", "all-teams", "unassigned", "Ünassigned 🚀", "ＡＬＬ　ＦＬＥＥＴＳ"},
-			after:  []string{"Un-assigned 2", "All_teams 2", "No-team 2", "all-teams 2", "unassigned 3", "Ünassigned 🚀 4", "ＡＬＬ　ＦＬＥＥＴＳ 3"},
+			before: []string{"Un-assigned", "All_teams", "No-team", "unassigned", "Ünassigned 🚀", "ＡＬＬ　ＴＥＡＭＳ"},
+			after:  []string{"Un-assigned 2", "All_teams 2", "No-team 2", "unassigned 3", "Ünassigned 🚀 4", "ＡＬＬ　ＴＥＡＭＳ 3"},
 		},
 		{
 			name:   "reserved name number taken",

@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	githubOwner = "automdm"
+	githubOwner = "fleetdm" // the feed is published by Fleet
 	githubRepo  = "vulnerabilities"
 )
 

@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	owner         = "automdm"
+	owner         = "fleetdm" // the feed is published by Fleet
 	repo          = "nvd"
 	cpeDBFilename = "cpe.sqlite"
 )

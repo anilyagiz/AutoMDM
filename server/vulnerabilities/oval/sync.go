@@ -23,7 +23,7 @@ func ghNvdFileGetter() func(string) (io.ReadCloser, error) {
 	ghClient := automdmhttp.NewGithubClient()
 	return func(file string) (io.ReadCloser, error) {
 		src, r, err := github.NewClient(ghClient).Repositories.DownloadContents(
-			context.Background(), "automdm", "nvd", file, nil)
+			context.Background(), "fleetdm", "nvd", file, nil)
 		if err != nil {
 			return nil, err
 		}

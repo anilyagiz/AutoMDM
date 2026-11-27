@@ -122,7 +122,8 @@ func TestOTAPhase2AutoMDMSignatureCapture(t *testing.T) {
 
 	signer := p7.GetOnlySigner()
 	require.NotNil(t, signer)
-	require.Equal(t, "AutoMDM Identity", signer.Subject.CommonName)
+	// The captured request was signed upstream by the Fleet SCEP identity.
+	require.Equal(t, "Fleet Identity", signer.Subject.CommonName)
 
 	// genuine AutoMDM-signed phase-2 body verifies (signature over the
 	// authenticated attributes, plus messageDigest == hash(content))

@@ -140,7 +140,7 @@ func TestApplyOverridesAdd(t *testing.T) {
 add:
   - {kind: apple_profile, payload_type: TopLevel, name: PayloadEnabled, key: {type: boolean}, reason: top}
   - {kind: apple_profile, payload_type: CommonPayloadKeys, name: PayloadEnabled, key: {type: boolean}, reason: common}
-  - {kind: apple_declaration, declaration_type: DeclarationBase, name: PayloadScope, key: {type: string, rangelist: [System, User]}, reason: team}
+  - {kind: apple_declaration, declaration_type: DeclarationBase, name: PayloadScope, key: {type: string, rangelist: [System, User]}, reason: automdm}
   - {kind: apple_profile, payload_type: com.apple.MCX, name: com.apple.login.mcx.Dotted, key: {type: boolean}, reason: dotted name}
   - kind: apple_profile
     payload_type: com.apple.security.scep

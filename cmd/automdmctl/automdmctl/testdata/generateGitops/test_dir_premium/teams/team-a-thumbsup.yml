@@ -71,12 +71,12 @@ policies:
   resolution: Do a team thing
   type: dynamic
   webhooks_and_tickets_enabled: false
-- calendar_events_enabled: false
+- automdm_maintained_app_slug: fma1/darwin
+  calendar_events_enabled: false
   conditional_access_enabled: true
   continuous_automations_enabled: false
   critical: false
   description: This is a team patch policy
-  automdm_maintained_app_slug: fma1/darwin
   force_patch: false
   hidden: false
   name: Team patch policy
@@ -87,12 +87,12 @@ policies:
   resolution: Do a team thing
   type: patch
   webhooks_and_tickets_enabled: false
-- calendar_events_enabled: false
+- automdm_maintained_app_slug: fma4/darwin
+  calendar_events_enabled: false
   conditional_access_enabled: false
   continuous_automations_enabled: true
   critical: false
   description: This is a team patch policy that notifies before patching
-  automdm_maintained_app_slug: fma4/darwin
   force_patch: false
   hidden: false
   name: My Notify FMA up to date
@@ -103,12 +103,12 @@ policies:
   resolution: Install the latest version from self-service
   type: patch
   webhooks_and_tickets_enabled: false
-- calendar_events_enabled: false
+- automdm_maintained_app_slug: fma5/darwin
+  calendar_events_enabled: false
   conditional_access_enabled: false
   continuous_automations_enabled: true
   critical: false
   description: This is a team patch policy with a patch deadline
-  automdm_maintained_app_slug: fma5/darwin
   force_patch: false
   hidden: false
   name: My Deadline FMA up to date
@@ -175,12 +175,12 @@ policies:
   resolution: Install the package
   type: dynamic
   webhooks_and_tickets_enabled: false
-- calendar_events_enabled: false
+- automdm_maintained_app_slug: fma3/windows
+  calendar_events_enabled: false
   conditional_access_enabled: false
   continuous_automations_enabled: false
   critical: false
   description: This is a team patch policy that force patches
-  automdm_maintained_app_slug: fma3/windows
   force_patch: true
   hidden: false
   name: Team force patch policy

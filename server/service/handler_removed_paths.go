@@ -16,12 +16,6 @@ import (
 // (/mdm/profiles/summary and /mdm/profiles/{profile_uuid}) must come first to get its own message. A path variable can add a regex
 // constraint that the table entry leaves out.
 var removedPathTemplates = []string{
-	"/api/_version_/automdm/spec/teams",
-	"/api/_version_/automdm/teams",
-	"/api/_version_/automdm/teams/{id}",
-	"/api/_version_/automdm/teams/{id}/agent_options",
-	"/api/_version_/automdm/teams/{id}/secrets",
-	"/api/_version_/automdm/teams/{id}/users",
 	"/api/_version_/automdm/team/{team_id}/policies",
 	"/api/_version_/automdm/team/{team_id}/policies/count",
 	"/api/_version_/automdm/team/{team_id}/policies/delete",
@@ -37,10 +31,6 @@ var removedPathTemplates = []string{
 	"/api/_version_/automdm/global/policies",
 	"/api/_version_/automdm/global/policies/delete",
 	"/api/_version_/automdm/global/policies/{policy_id}",
-	"/api/_version_/automdm/teams/{team_id}/policies",
-	"/api/_version_/automdm/teams/{team_id}/policies/count",
-	"/api/_version_/automdm/teams/{team_id}/policies/delete",
-	"/api/_version_/automdm/teams/{team_id}/policies/{policy_id}",
 	"/api/_version_/automdm/mdm/apple/profiles/preassign",
 	"/api/_version_/automdm/mdm/apple/profiles/match",
 	"/api/_version_/automdm/hosts/{host_id}/configuration_profiles/resend/{profile_uuid}",
@@ -49,10 +39,7 @@ var removedPathTemplates = []string{
 	"/api/_version_/automdm/abm_tokens/count",
 	"/api/_version_/automdm/abm_tokens/{id}",
 	"/api/_version_/automdm/abm_tokens/{id}/renew",
-	"/api/_version_/automdm/ab_tokens/{id}/teams",
 	"/api/_version_/automdm/abm_tokens/{id}/teams",
-	"/api/_version_/automdm/abm_tokens/{id}/teams",
-	"/api/_version_/automdm/vpp_tokens/{id}/teams",
 	"/api/_version_/automdm/mdm/apple_bm",
 	"/api/_version_/automdm/mdm/apple/abm_public_key",
 	"/api/_version_/automdm/scripts/batch/summary/{batch_execution_id}",
@@ -90,8 +77,6 @@ var removedPathTemplates = []string{
 	"/api/_version_/automdm/global/schedule/{id}",
 	"/api/_version_/automdm/schedule",
 	"/api/_version_/automdm/schedule/{id}",
-	"/api/_version_/automdm/teams/{team_id}/schedule",
-	"/api/_version_/automdm/teams/{team_id}/schedule/{report_id}",
 
 	"/api/_version_/automdm/mdm/commands",
 	"/api/_version_/automdm/mdm/apple/commands",

@@ -31,7 +31,8 @@ func TestAutoMDM5BaselineRetry(t *testing.T) {
 	checkBaseline(t, db)
 }
 
-func TestAutoMDM5BaselineAutoMDM4Database(t *testing.T) {
+// The name is short because subtest names become database names, which MySQL limits to 64 characters.
+func TestAutoMDM5BaselineV4Database(t *testing.T) {
 	newTeam4DB := func(t *testing.T, tableVersions, dataVersions []int64) *sqlx.DB {
 		db := newDBConnForTests(t)
 		_, err := MigrationClient.GetDBVersion(db.DB)

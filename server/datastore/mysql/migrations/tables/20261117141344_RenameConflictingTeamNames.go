@@ -49,7 +49,7 @@ func teamNameKey20261117141344(name string) string {
 
 // reservedTeamNames20261117141344 is a frozen copy of the reserved team names, so this migration keeps renaming the
 // same teams if that list changes later.
-var reservedTeamNames20261117141344 = []string{"Unassigned", "All teams", "No team", "All teams"}
+var reservedTeamNames20261117141344 = []string{"Unassigned", "All teams", "No team"}
 
 type renamedTeam20261117141344 struct {
 	id      uint
