@@ -1,0 +1,2 @@
+ok  	github.com/anilyagiz/automdm/v4/server/datastore/mysql	291.841s
+ok  	github.com/anilyagiz/automdm/v4/server/datastore/mysql/migrations/tables	296.263s

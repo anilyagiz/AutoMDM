@@ -1,0 +1,10 @@
+# github.com/mattn/go-sqlite3
+sqlite3-binding.c: In function ‘sqlite3ShadowTableName’:
+sqlite3-binding.c:123133:9: warning: assignment discards ‘const’ qualifier from pointer target type [-Wdiscarded-qualifiers]
+123133 |   zTail = strrchr(zName, '_');
+       |         ^
+ok  	github.com/anilyagiz/automdm/v4/server/datastore/mysql	291.841s
+ok  	github.com/anilyagiz/automdm/v4/server/datastore/mysql/migrations/tables	296.263s
+?   	github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest	[no test files]
+?   	github.com/anilyagiz/automdm/v4/server/datastore/mysql/rdsauth	[no test files]
+exit=0
