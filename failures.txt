@@ -1,0 +1,44 @@
+ok  	github.com/anilyagiz/automdm/v4/server/contexts/ctxerr	0.034s
+?   	github.com/anilyagiz/automdm/v4/server/contexts/devicesso	[no test files]
+?   	github.com/anilyagiz/automdm/v4/server/contexts/host	[no test files]
+ok  	github.com/anilyagiz/automdm/v4/server/contexts/installersize	0.005s
+ok  	github.com/anilyagiz/automdm/v4/server/contexts/license	0.009s
+ok  	github.com/anilyagiz/automdm/v4/server/contexts/logging	0.005s
+?   	github.com/anilyagiz/automdm/v4/server/contexts/osqueryauth	[no test files]
+?   	github.com/anilyagiz/automdm/v4/server/contexts/preservedsources	[no test files]
+?   	github.com/anilyagiz/automdm/v4/server/contexts/publicip	[no test files]
+ok  	github.com/anilyagiz/automdm/v4/server/contexts/redact	0.004s
+ok  	github.com/anilyagiz/automdm/v4/server/contexts/token	0.004s
+ok  	github.com/anilyagiz/automdm/v4/server/contexts/viewer	0.009s
+ok  	github.com/anilyagiz/automdm/v4/server/cron	0.016s
+ok  	github.com/anilyagiz/automdm/v4/server/crypto	0.005s
+ok  	github.com/anilyagiz/automdm/v4/server/datastore/azure	0.041s
+ok  	github.com/anilyagiz/automdm/v4/server/datastore/cached_mysql	2.020s
+ok  	github.com/anilyagiz/automdm/v4/server/datastore/cloudstorage	0.003s
+ok  	github.com/anilyagiz/automdm/v4/server/datastore/etag_invalidate	0.009s
+?   	github.com/anilyagiz/automdm/v4/server/datastore/failing	[no test files]
+ok  	github.com/anilyagiz/automdm/v4/server/datastore/filesystem	0.029s
+ok  	github.com/anilyagiz/automdm/v4/server/datastore/mysql	21.408s
+ok  	github.com/anilyagiz/automdm/v4/server/datastore/mysql/migrations/tables	194.556s
+?   	github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest	[no test files]
+?   	github.com/anilyagiz/automdm/v4/server/datastore/mysql/rdsauth	[no test files]
+ok  	github.com/anilyagiz/automdm/v4/server/datastore/mysqlredis	0.063s
+ok  	github.com/anilyagiz/automdm/v4/server/datastore/orbitconfig_notify	0.019s
+ok  	github.com/anilyagiz/automdm/v4/server/datastore/osqueryconfig_notify	0.015s
+ok  	github.com/anilyagiz/automdm/v4/server/datastore/redis	4.076s
+?   	github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest	[no test files]
+ok  	github.com/anilyagiz/automdm/v4/server/datastore/s3	0.326s
+?   	github.com/anilyagiz/automdm/v4/server/datastore/s3/s3test	[no test files]
+?   	github.com/anilyagiz/automdm/v4/server/dev_mode	[no test files]
+ok  	github.com/anilyagiz/automdm/v4/server/errorstore	0.020s
+ok  	github.com/anilyagiz/automdm/v4/server/goose	0.003s
+?   	github.com/anilyagiz/automdm/v4/server/goose/cmd/goose	[no test files]
+ok  	github.com/anilyagiz/automdm/v4/server/health	0.065s
+ok  	github.com/anilyagiz/automdm/v4/server/live_query	0.022s
+?   	github.com/anilyagiz/automdm/v4/server/live_query/live_query_mock	[no test files]
+ok  	github.com/anilyagiz/automdm/v4/server/logging	4.378s
+?   	github.com/anilyagiz/automdm/v4/server/logging/mock	[no test files]
+--- FAIL: TestTemplateProcessor (0.00s)
+panic: Assets may not be used when running AutoMDM as a library [recovered, repanicked]
+
+goroutine 10 [running]:
