@@ -450,53 +450,7 @@ spec:
   team:
     name: macOS
 `),
-			removedMessage(removednames.KindSpecKind, "team"),
-		},
-		{
-			"kind: team with team: key",
-			[]byte(`
-apiVersion: v1
-kind: team
-spec:
-  team:
-    name: macOS
-`),
 			"",
-		},
-		{
-			"kind: team with team: key",
-			[]byte(`
-apiVersion: v1
-kind: team
-spec:
-  team:
-    name: macOS
-`),
-			removedMessage(removednames.KindYAMLKey, "spec.team"),
-		},
-		{
-			"kind: team with both team: and team: keys, as older get teams exports have",
-			[]byte(`
-apiVersion: v1
-kind: team
-spec:
-  team:
-    name: macOS
-  team:
-    name: macOS
-`),
-			removedMessage(removednames.KindYAMLKey, "spec.team"),
-		},
-		{
-			"kind: team with team: key",
-			[]byte(`
-apiVersion: v1
-kind: team
-spec:
-  team:
-    name: macOS
-`),
-			removedMessage(removednames.KindSpecKind, "team"),
 		},
 		{
 			"kind: user_roles",

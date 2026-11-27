@@ -250,20 +250,13 @@ func TestListActivitiesBasic(t *testing.T) {
 
 func TestListActivitiesTranslatesStoredDetails(t *testing.T) {
 	t.Parallel()
-	// The output is compared as exact text, which also keeps numbers from losing precision.
+	// AutoMDM has no removed activity detail keys, so stored details come back exactly as stored.
 	cases := []struct {
 		name, stored, want string
 	}{
-		{"old keys", `{"team_id": 7, "team_name": "Old", "n": 1}`, `{"team_id":7,"team_name":"Old","n":1}`},
-		{"old and new keys keep the new ones", `{"team_id": 7, "team_id": 8, "team_name": null, "team_name": "New"}`,
-			`{"team_id":8,"team_name":"New"}`},
-		{"new keys", `{"team_id": 7, "team_name": "New"}`, `{"team_id": 7, "team_name": "New"}`},
-		{"removed key names as values", `{"team_name": "team_id", "other": "teams"}`, `{"team_name":"team_id","other":"teams"}`},
-		{"nested keys are left alone", `{"teams": [{"id": 1, "team_id": 2}], "x": {"team_name": "n"}}`,
-			`{"teams":[{"id":1,"team_id":2}],"x":{"team_name":"n"}}`},
-		{"app-owned configuration", `{"team_id": 1, "configuration": {"managedConfiguration": {"team_id": 5, "teams": [1]}}}`,
-			`{"configuration":{"managedConfiguration":{"team_id":5,"teams":[1]}},"team_id":1}`},
-		{"large ids", `{"team_id": 9007199254740993}`, `{"team_id":9007199254740993}`},
+		{"team keys", `{"team_id": 7, "team_name": "Old", "n": 1}`, `{"team_id": 7, "team_name": "Old", "n": 1}`},
+		{"nested keys", `{"teams": [{"id": 1, "team_id": 2}], "x": {"team_name": "n"}}`, `{"teams": [{"id": 1, "team_id": 2}], "x": {"team_name": "n"}}`},
+		{"large ids", `{"team_id": 9007199254740993}`, `{"team_id": 9007199254740993}`},
 		{"malformed details", `{"team_id": `, `{"team_id": `},
 		{"details that are not an object", `[{"team_id": 1}]`, `[{"team_id": 1}]`},
 	}

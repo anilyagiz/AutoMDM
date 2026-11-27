@@ -805,7 +805,7 @@ func (s *integrationEnterpriseTestSuite) TestOrbitEnrollWithIdPPopulatesDeviceMa
 	require.NoError(t, s.ds.ApplyEnrollSecrets(ctx, &team.ID, []*automdm.EnrollSecret{{Secret: enrollSecret}}))
 
 	// Orbit client capabilities — Linux and Windows orbit builds advertise
-	// CapabilityEndUserAuth. The X-AutoMDM-Capabilities header is an
+	// CapabilityEndUserAuth. The X-Automdm-Capabilities header is an
 	// informational hint only: EUA gating must hold regardless of what
 	// the client advertises.
 	var caps automdm.CapabilityMap

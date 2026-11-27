@@ -45,7 +45,7 @@ func TestScanConfigs(t *testing.T) {
 
 	write(t, filepath.Join(home, ".hermes", "config.yaml"), `
 mcp_servers:
-  team:
+  automdm:
     url: "http://localhost:8081/sse"
     transport: sse
     headers:
@@ -133,13 +133,13 @@ args = ["mcp"]
 		t.Errorf("automdm client=%q want hermes", by["automdm"].Client)
 	}
 	if !strings.Contains(by["automdm"].RiskFlags, "cleartext_endpoint") {
-		t.Errorf("team risk_flags=%q missing cleartext_endpoint", by["automdm"].RiskFlags)
+		t.Errorf("automdm risk_flags=%q missing cleartext_endpoint", by["automdm"].RiskFlags)
 	}
 	if !strings.Contains(by["automdm"].RiskFlags, "plaintext_secret") {
-		t.Errorf("team risk_flags=%q missing plaintext_secret (Authorization header name)", by["automdm"].RiskFlags)
+		t.Errorf("automdm risk_flags=%q missing plaintext_secret (Authorization header name)", by["automdm"].RiskFlags)
 	}
 	if strings.Contains(by["automdm"].EnvKeys, "SECRET") || strings.Contains(by["automdm"].EnvKeys, "Bearer") {
-		t.Errorf("team env_keys leaked a header value: %q", by["automdm"].EnvKeys)
+		t.Errorf("automdm env_keys leaked a header value: %q", by["automdm"].EnvKeys)
 	}
 	if by["exa"].URL != "https://mcp.exa.ai/mcp" {
 		t.Errorf("exa URL=%q", by["exa"].URL)

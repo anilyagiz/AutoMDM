@@ -30,7 +30,7 @@ type addAutoMDMMaintainedAppRequest struct {
 
 // DecodeRequest implements the RequestDecoder interface to support base64-encoded
 // script fields. This allows bypassing WAF rules that may block requests containing
-// shell/PowerShell script patterns. When the X-AutoMDM-Scripts-Encoded header is set
+// shell/PowerShell script patterns. When the X-Automdm-Scripts-Encoded header is set
 // to "base64", the script fields are decoded from base64.
 func (addAutoMDMMaintainedAppRequest) DecodeRequest(ctx context.Context, r *http.Request) (any, error) {
 	var req addAutoMDMMaintainedAppRequest

@@ -2261,13 +2261,13 @@ func (l *LicenseInfo) GetDeviceCount() int {
 }
 
 const (
-	HeaderLicenseKey          = "X-AutoMDM-License"
+	HeaderLicenseKey          = "X-Automdm-License"
 	HeaderLicenseValueExpired = "Expired"
 )
 
 // HeaderClientVersion carries the version of the automdmctl that sends the request. AutoMDM can rely on it, unlike the User-Agent, which
 // admins can override with custom headers.
-const HeaderClientVersion = "X-AutoMDM-Client-Version"
+const HeaderClientVersion = "X-Automdm-Client-Version"
 
 type Logging struct {
 	Debug  bool          `json:"debug"`

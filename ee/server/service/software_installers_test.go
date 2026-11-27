@@ -1226,7 +1226,8 @@ func TestUpdateSoftwareInstallerMatchesSoftwareIdentity(t *testing.T) {
 		contents, storageID := readInstaller(t, "../../../server/service/testdata/software-installers/automdm-osquery.msi")
 		state := setup(t, "AutoMDM agent", "automdm-osquery.msi", "msi", "windows", storageID, []string{"{70A53353-01E5-424B-8819-ED882B3805D9}"}, false)
 		state.ds.GetExistingSoftwareInstallerTitleIDFunc = func(ctx context.Context, payload *automdm.UploadSoftwareInstallerPayload) (uint, error) {
-			require.Equal(t, "AutoMDM osquery", payload.Title)
+			// The title comes from the test installer, which Fleet built, so it keeps its original name.
+			require.Equal(t, "Fleet osquery", payload.Title)
 			require.Equal(t, "programs", payload.Source)
 			require.NotEmpty(t, payload.UpgradeCode)
 			return titleID, nil
@@ -1337,9 +1338,9 @@ func TestUpdateSoftwareInstallerMatchesSoftwareIdentity(t *testing.T) {
 		// A same-named Windows MSI whose upgrade_code changed resolves to not-found by identity; the
 		// name fallback must still accept it.
 		contents, storageID := readInstaller(t, "../../../server/service/testdata/software-installers/automdm-osquery.msi")
-		state := setup(t, "AutoMDM osquery", "automdm-osquery.msi", "msi", "windows", storageID, []string{"{70A53353-01E5-424B-8819-ED882B3805D9}"}, false)
+		state := setup(t, "Fleet osquery", "automdm-osquery.msi", "msi", "windows", storageID, []string{"{70A53353-01E5-424B-8819-ED882B3805D9}"}, false)
 		state.ds.GetExistingSoftwareInstallerTitleIDFunc = func(ctx context.Context, payload *automdm.UploadSoftwareInstallerPayload) (uint, error) {
-			require.Equal(t, "AutoMDM osquery", payload.Title)
+			require.Equal(t, "Fleet osquery", payload.Title)
 			return 0, &notFoundError{}
 		}
 

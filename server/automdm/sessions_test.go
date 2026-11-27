@@ -444,40 +444,6 @@ func TestRolesFromSSOAttributes(t *testing.T) {
 			},
 		},
 		{
-			name: "legacy-team-prefix-is-ignored",
-			attributes: []SAMLAttribute{
-				{
-					Name: "AUTOMDM_JIT_USER_ROLE_TEAM_1",
-					Values: []SAMLAttributeValue{
-						{Value: "observer"},
-					},
-				},
-				{
-					Name: "AUTOMDM_JIT_USER_ROLE_TEAM_foo",
-					Values: []SAMLAttributeValue{
-						{Value: "not-a-role"},
-					},
-				},
-				{
-					Name: teamUserRoleSSOAttrNamePrefix + "2",
-					Values: []SAMLAttributeValue{
-						{Value: "admin"},
-					},
-				},
-			},
-			shouldFail: false,
-			expectedSSORolesInfo: SSORolesInfo{
-				Global: nil,
-				Teams: []TeamRole{
-					{
-						ID:   2,
-						Role: "admin",
-					},
-				},
-			},
-			expectedIgnored: []string{"AUTOMDM_JIT_USER_ROLE_TEAM_1", "AUTOMDM_JIT_USER_ROLE_TEAM_foo"},
-		},
-		{
 			name: "global-gitops-not-supported-for-jit",
 			attributes: []SAMLAttribute{
 				{

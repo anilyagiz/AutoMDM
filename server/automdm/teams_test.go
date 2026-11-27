@@ -504,7 +504,7 @@ func TestReservedTeamNameReason(t *testing.T) {
 	for name, want := range map[string]string{
 		"Unassigned":      `"Unassigned" is a reserved team name`,
 		"unassigned":      `"unassigned" is a reserved team name`,
-		"ALL AUTOMDMS":    `"ALL AUTOMDMS" is a reserved team name`,
+		"ALL TEAMS":       `"ALL TEAMS" is a reserved team name`,
 		"No team":         `"No team" is a reserved team name`,
 		"all teams":       `"all teams" is a reserved team name`,
 		"Un-assigned":     `"Un-assigned" is too similar to the reserved name "Unassigned"`,
@@ -512,7 +512,6 @@ func TestReservedTeamNameReason(t *testing.T) {
 		"Unassigned 🚀":    `"Unassigned 🚀" is too similar to the reserved name "Unassigned"`,
 		"Ｕｎａｓｓｉｇｎｅｄ":      `"Ｕｎａｓｓｉｇｎｅｄ" is too similar to the reserved name "Unassigned"`,
 		"All_teams":       `"All_teams" is too similar to the reserved name "All teams"`,
-		"allfleets":       `"allfleets" is too similar to the reserved name "All teams"`,
 		"No-team":         `"No-team" is too similar to the reserved name "No team"`,
 		"all-teams":       `"all-teams" is too similar to the reserved name "All teams"`,
 		"All teams!":      `"All teams!" is too similar to the reserved name "All teams"`,

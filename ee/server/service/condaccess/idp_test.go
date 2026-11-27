@@ -649,7 +649,8 @@ func TestParseCertAndKeyBytes(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, cert)
 		require.NotNil(t, key)
-		require.Equal(t, "test-idp.automdm.example.com", cert.Subject.CommonName)
+		// The test certificate was issued upstream for this name.
+		require.Equal(t, "test-idp.fleet.example.com", cert.Subject.CommonName)
 	})
 
 	t.Run("returns error when certificate is invalid", func(t *testing.T) {

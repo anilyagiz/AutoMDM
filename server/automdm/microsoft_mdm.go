@@ -905,7 +905,7 @@ type MDMWindowsESPReleaseAckStatus struct {
 type MDMWindowsHostConfigState struct {
 	AwaitingConfiguration WindowsMDMAwaitingConfiguration
 	HasPendingCommands    bool
-	// AutoMDMdSyncCapable is the last-observed value of the X-AutoMDM-Capabilities CapabilityWindowsMDMSync flag for this enrollment, persisted by
+	// AutoMDMdSyncCapable is the last-observed value of the X-Automdm-Capabilities CapabilityWindowsMDMSync flag for this enrollment, persisted by
 	// the orbit-config endpoint. GetOrbitConfig reads it to write-on-change; the OMA-DM management session (which has no capability header)
 	// reads it to gate poll relaxation.
 	AutoMDMdSyncCapable bool
@@ -914,7 +914,7 @@ type MDMWindowsHostConfigState struct {
 	// ManagedLocalAccountRotationRequested asks the device to re-provision the account even though a password is already
 	// escrowed. Cleared once it escrows the replacement.
 	ManagedLocalAccountRotationRequested bool
-	// AutoMDMdBitLockerPINCapable is the last-observed value of the X-AutoMDM-Capabilities CapabilityWindowsBitLockerPIN
+	// AutoMDMdBitLockerPINCapable is the last-observed value of the X-Automdm-Capabilities CapabilityWindowsBitLockerPIN
 	// flag for this enrollment, persisted by the orbit-config endpoint. The device and AutoMDM Desktop endpoints carry no
 	// capability header, so they read this column to decide whether to offer the end user the PIN form.
 	AutoMDMdBitLockerPINCapable bool

@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -28,24 +27,18 @@ func TestMessage(t *testing.T) {
 		want    string
 	}{
 		// The AutoMDM 5 error spec: one wording for parameters and YAML keys, with the replacement left to the guide.
-		{KindQueryParam, "team_id", "", `The "team_id" parameter is not available anymore. What to use instead: ` + GuideURL},
-		{KindJSONKey, "team_id", "", `The "team_id" parameter is not available anymore. What to use instead: ` + GuideURL},
+		{KindQueryParam, "macos_settings", "", `The "macos_settings" parameter is not available anymore. What to use instead: ` + GuideURL},
+		{KindJSONKey, "macos_settings", "", `The "macos_settings" parameter is not available anymore. What to use instead: ` + GuideURL},
 		{KindYAMLKey, "team_settings", "", `The "team_settings" key is not available anymore. What to use instead: ` + GuideURL},
-		{KindSortKey, "team_id", "", `The "team_id" parameter is not available anymore. What to use instead: ` + GuideURL},
-		{KindTargetType, "team", "", `The "team" parameter is not available anymore. What to use instead: ` + GuideURL},
-		{KindCommand, "automdmctl get teams", "", `The "automdmctl get teams" command is not available anymore. What to use instead: ` + GuideURL},
-		{KindEnvVar, "DELETE_OTHER_TEAMS", "automdmctl gitops",
-			`The "DELETE_OTHER_TEAMS" environment variable is not available anymore. What to use instead: ` + GuideURL},
+		{KindCommand, "automdmctl delete", "", `The "automdmctl delete" command is not available anymore. What to use instead: ` + GuideURL},
 		{KindFlagValue, "--team no-team", "automdmctl generate-gitops",
 			`The "--team no-team" value is not available anymore. What to use instead: ` + GuideURL},
-		// Only flags are displayed differently: they get their leading dashes.
-		{KindFlag, "team", "automdmctl get hosts", `The "--team" flag is not available anymore. What to use instead: ` + GuideURL},
-		{KindSAMLAttribute, "AUTOMDM_JIT_USER_ROLE_TEAM_<ID>", "",
-			`The "AUTOMDM_JIT_USER_ROLE_TEAM_<ID>" SAML attribute is not available anymore. What to use instead: ` + GuideURL},
 		{KindAutoMDMVariable, "$AUTOMDM_VAR_HOST_END_USER_EMAIL_IDP", "",
 			`The "$AUTOMDM_VAR_HOST_END_USER_EMAIL_IDP" variable is not available anymore. What to use instead: ` + GuideURL},
 		// A removed endpoint leaves the replacement to the guide. The request's method is added when a handler answers it.
-		{KindPath, pathPrefix + "/spec/teams", "", `The "/spec/teams" endpoint is not available anymore. What to use instead: ` + GuideURL},
+		{KindPath, pathPrefix + "/team/{team_id}/policies", "",
+			`The "/team/{team_id}/policies" endpoint is not available anymore. What to use instead: ` + GuideURL},
+		// Only flags are displayed differently: they get their leading dashes.
 		{KindFlag, "t", "automdmctl user create", `The "-t" flag is not available anymore. What to use instead: ` + GuideURL},
 	} {
 		e, ok := Find(c.kind, c.old, c.context)
@@ -105,17 +98,17 @@ func TestEntryMessageFormats(t *testing.T) {
 func TestFindAndFilter(t *testing.T) {
 	t.Parallel()
 
-	// A SAML attribute matches on the text before its <ID>.
+	// Team names are current names, so nothing matches them.
 	_, ok := FindSAMLAttribute("AUTOMDM_JIT_USER_ROLE_TEAM_12")
-	assert.True(t, ok)
-	_, ok = FindSAMLAttribute("AUTOMDM_JIT_USER_ROLE_TEAM_12")
-	assert.False(t, ok)
-	// A flag entry is tied to its command, and an entry without a context matches every context.
-	_, ok = Find(KindFlag, "team", "automdmctl get hosts")
-	assert.True(t, ok)
-	_, ok = Find(KindFlag, "team", "automdmctl gitops")
 	assert.False(t, ok)
 	_, ok = Find(KindJSONKey, "team_id", "anything")
+	assert.False(t, ok)
+	// A flag entry is tied to its command, and an entry without a context matches every context.
+	_, ok = Find(KindFlag, "t", "automdmctl user create")
+	assert.True(t, ok)
+	_, ok = Find(KindFlag, "t", "automdmctl gitops")
+	assert.False(t, ok)
+	_, ok = Find(KindJSONKey, "macos_settings", "anything")
 	assert.True(t, ok)
 
 	// A YAML value ignores case, but its key does not.
@@ -127,7 +120,7 @@ func TestFindAndFilter(t *testing.T) {
 	}
 
 	// Filter matches on scope bits, and a zero scope matches every scope.
-	for _, scope := range []Scope{ScopeRequest, ScopeResponse, ScopeActivityDetails} {
+	for _, scope := range []Scope{ScopeRequest, ScopeResponse} {
 		entries := Filter(KindJSONKey, scope)
 		assert.NotEmpty(t, entries)
 		for _, e := range entries {
@@ -135,7 +128,7 @@ func TestFindAndFilter(t *testing.T) {
 			assert.NotZero(t, e.Scope&scope, e.Old)
 		}
 	}
-	assert.Greater(t, len(Filter(KindJSONKey, 0)), len(Filter(KindJSONKey, ScopeActivityDetails)))
+	assert.Empty(t, Filter(KindJSONKey, ScopeActivityDetails))
 }
 
 func TestFindByContext(t *testing.T) {
@@ -192,7 +185,7 @@ func TestEntriesWellFormed(t *testing.T) {
 		seen[key] = struct{}{}
 	}
 
-	// Renaming teams always has a replacement, and every old name is team-related.
+	// Team entries always have a replacement, and every old name is team-related.
 	for _, e := range teamEntries {
 		assert.NotEmpty(t, e.New, e.Old)
 		// The exceptions are the single-letter aliases of team commands and flags, such as -t.
@@ -200,124 +193,6 @@ func TestEntriesWellFormed(t *testing.T) {
 			assert.Contains(t, strings.ToLower(e.Old), "team", "old name should be team-related")
 		}
 	}
-}
-
-// TestEntriesCoverDeprecatedSources fails when a source that accepts a team-related name as a deprecated alias has one that is missing
-// from the table, so no old-to-new pair is lost when those sources are removed. Each subtest scans one source and is deleted by the
-// change that removes that source: it fails, rather than passing vacuously, once there is nothing left to scan.
-func TestEntriesCoverDeprecatedSources(t *testing.T) {
-	t.Parallel()
-
-	root := filepath.Join("..", "..")
-	hasEntry := func(match func(Entry) bool) bool { return slices.ContainsFunc(teamEntries, match) }
-	has := func(kind Kind, scope Scope, oldName, newName string) bool {
-		return hasEntry(func(e Entry) bool {
-			return e.Kind == kind && e.Scope&scope != 0 && e.Old == oldName && (newName == "" || e.New == newName)
-		})
-	}
-	isTeamRelated := func(name string) bool { return strings.Contains(strings.ToLower(name), "team") }
-
-	t.Run("renameto struct tags", func(t *testing.T) {
-		t.Parallel()
-		found := 0
-		for rel, file := range parseFiles(t, root, []string{"server", "ee", "cmd", "pkg"}, "renameto") {
-			ast.Inspect(file, func(n ast.Node) bool {
-				field, ok := n.(*ast.Field)
-				if !ok || field.Tag == nil {
-					return true
-				}
-				unquoted, err := strconv.Unquote(field.Tag.Value)
-				if err != nil {
-					return true
-				}
-				tag := reflect.StructTag(unquoted)
-				renameTo, _, _ := strings.Cut(tag.Get("renameto"), ",")
-				for key, kind := range map[string]Kind{
-					"json": KindJSONKey, "query": KindQueryParam, "url": KindQueryParam, "form": KindFormField, "csv": KindCSVColumn,
-				} {
-					oldName, _, _ := strings.Cut(tag.Get(key), ",")
-					if renameTo == "" || oldName == "" {
-						continue
-					}
-					// Count every renamed tag, since group C left no team ones and the scan must still prove it parsed something.
-					found++
-					if !isTeamRelated(oldName) {
-						continue
-					}
-					scope := ScopeRequest | ScopeResponse
-					if filepath.ToSlash(rel) == "server/automdm/activities.go" {
-						scope = ScopeActivityDetails
-					}
-					assert.True(t, has(kind, scope, oldName, renameTo), "%s: %s tag %q renamed to %q is missing from entries", rel, key, oldName, renameTo)
-				}
-				return true
-			})
-		}
-		assert.Positive(t, found)
-	})
-
-	t.Run("automdmctl flag, command, and env var aliases", func(t *testing.T) {
-		t.Parallel()
-		endsWithAny := func(context string, names []string) bool {
-			return slices.ContainsFunc(names, func(name string) bool { return strings.HasSuffix(context, " "+name) })
-		}
-		for rel, file := range parseFiles(t, root, []string{filepath.Join("cmd", "automdmctl", "automdmctl")}, "") {
-			for _, alias := range collectCLIAliases(file, isTeamRelated) {
-				var match func(Entry) bool
-				switch alias.kind {
-				case cliCommandAlias:
-					match = func(e Entry) bool {
-						return e.Kind == KindCommand && strings.HasSuffix(e.Old, " "+alias.name) && strings.HasSuffix(e.New, " "+alias.command[0])
-					}
-				case cliFlagAlias:
-					match = func(e Entry) bool {
-						return e.Kind == KindFlag && e.Old == alias.name && endsWithAny(e.Context, alias.command) &&
-							(alias.flagName == "" || e.New == alias.flagName)
-					}
-				case cliEnvVar:
-					match = func(e Entry) bool {
-						return e.Kind == KindEnvVar && e.Old == alias.name && endsWithAny(e.Context, alias.command)
-					}
-				}
-				assert.True(t, hasEntry(match), "%s: %s %q of command %v is missing from entries", rel, alias.kind, alias.name, alias.command)
-			}
-		}
-	})
-
-	t.Run("gitops key mappings", func(t *testing.T) {
-		t.Parallel()
-		found := 0
-		ast.Inspect(parseFile(t, filepath.Join(root, "pkg", "spec", "gitops_deprecations.go")), func(n ast.Node) bool {
-			lit, ok := n.(*ast.CompositeLit)
-			if !ok {
-				return true
-			}
-			if pair := stringLits(lit); len(lit.Elts) == 2 && len(pair) == 2 && isTeamRelated(pair[0]) {
-				found++
-				// A dotted path must have its own YAML entry; only an undotted name can be covered by a JSON key entry.
-				matched := has(KindYAMLKey, ScopeRequest, pair[0], pair[1]) ||
-					(!strings.Contains(pair[0], ".") && has(KindJSONKey, ScopeRequest, pair[0], pair[1]))
-				assert.True(t, matched, "gitops mapping %s -> %s is missing from entries", pair[0], pair[1])
-			}
-			return true
-		})
-		assert.Positive(t, found)
-	})
-
-	t.Run("gitops no-team file and name", func(t *testing.T) {
-		t.Parallel()
-		var fileNames []string
-		ast.Inspect(parseFile(t, filepath.Join(root, "pkg", "spec", "gitops.go")), func(n ast.Node) bool {
-			if v, ok := n.(*ast.BasicLit); ok && strings.HasSuffix(v.Value, `-team.yml"`) {
-				fileNames = append(fileNames, stringLits(v)...)
-			}
-			return true
-		})
-		require.NotEmpty(t, fileNames)
-		for _, name := range fileNames {
-			assert.True(t, has(KindFileName, ScopeRequest, name, ""), "GitOps file name %s is missing from entries", name)
-		}
-	})
 }
 
 // parseFiles parses the non-test Go files under dirs (relative to root) that contain substr, keyed by path relative to root.

@@ -263,7 +263,7 @@ type KeyEscrower interface {
 	// automdm.LinuxEscrowStatus*).
 	SendLinuxKeyEscrowStatus(status string) error
 	// GetServerCapabilities returns the capabilities the AutoMDM server most
-	// recently advertised via the X-AutoMDM-Capabilities header. Used to gate
+	// recently advertised via the X-Automdm-Capabilities header. Used to gate
 	// the snapd/TPM-backed FDE recovery-key escrow path on servers that
 	// understand the recovery-key payload shape.
 	GetServerCapabilities() automdm.CapabilityMap

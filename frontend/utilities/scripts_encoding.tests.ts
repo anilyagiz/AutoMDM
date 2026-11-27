@@ -3,7 +3,7 @@ import { encodeScriptBase64, SCRIPTS_ENCODED_HEADER } from "./scripts_encoding";
 describe("scripts_encoding", () => {
   describe("SCRIPTS_ENCODED_HEADER", () => {
     it("should have the expected value", () => {
-      expect(SCRIPTS_ENCODED_HEADER).toBe("X-AutoMDM-Scripts-Encoded");
+      expect(SCRIPTS_ENCODED_HEADER).toBe("X-Automdm-Scripts-Encoded");
     });
   });
 

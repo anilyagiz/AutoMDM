@@ -1643,7 +1643,7 @@ func TestGetOrbitConfigWindowsSetupExperience(t *testing.T) {
 		return ds, svc, ctx, host
 	}
 
-	// withWindowsMDMSyncCapability returns a context whose X-AutoMDM-Capabilities advertise CapabilityWindowsMDMSync, as a Windows automdmd that
+	// withWindowsMDMSyncCapability returns a context whose X-Automdm-Capabilities advertise CapabilityWindowsMDMSync, as a Windows automdmd that
 	// supports on-demand sync would send on its orbit config request.
 	withWindowsMDMSyncCapability := func(ctx context.Context) context.Context {
 		req := httptest.NewRequest("POST", "/api/automdm/orbit/config", nil)
@@ -1748,7 +1748,7 @@ func TestGetOrbitConfigWindowsSetupExperience(t *testing.T) {
 			return &automdm.MDMWindowsHostConfigState{AwaitingConfiguration: automdm.WindowsMDMAwaitingConfigurationNone, HasPendingCommands: true}, nil
 		}
 
-		// ctx has no X-AutoMDM-Capabilities, as an older automdmd that cannot sync on demand would send.
+		// ctx has no X-Automdm-Capabilities, as an older automdmd that cannot sync on demand would send.
 		cfg, err := svc.GetOrbitConfig(ctx)
 		require.NoError(t, err)
 		assert.False(t, cfg.Notifications.WindowsMDMSyncRequest)
@@ -1788,7 +1788,7 @@ func TestGetOrbitConfigWindowsSetupExperience(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	// withBitLockerPINCapability returns a context whose X-AutoMDM-Capabilities advertise CapabilityWindowsBitLockerPIN.
+	// withBitLockerPINCapability returns a context whose X-Automdm-Capabilities advertise CapabilityWindowsBitLockerPIN.
 	withBitLockerPINCapability := func(ctx context.Context) context.Context {
 		req := httptest.NewRequest("POST", "/api/automdm/orbit/config", nil)
 		cm := automdm.CapabilityMap{automdm.CapabilityWindowsBitLockerPIN: struct{}{}}
@@ -2055,7 +2055,7 @@ func TestResolveOrbitDebugLogging(t *testing.T) {
 // set for any Windows MDM host (not just during the setup experience) when the team or No-team setting is enabled,
 // automdmd advertises the capability, and it stops once the host has escrowed a password for its current enrollment.
 func TestGetOrbitConfigWindowsManagedLocalAccount(t *testing.T) {
-	// withMLACapability returns a context whose X-AutoMDM-Capabilities advertise the managed local
+	// withMLACapability returns a context whose X-Automdm-Capabilities advertise the managed local
 	// account capability, as a capable Windows automdmd would send.
 	withMLACapability := func(ctx context.Context) context.Context {
 		req := httptest.NewRequest("POST", "/api/automdm/orbit/config", nil)
@@ -2460,7 +2460,7 @@ func TestEscrowWindowsManagedLocalAccountPassword(t *testing.T) {
 func TestEnrollOrbitEndUserAuthBypass(t *testing.T) {
 	// When end user authentication is required and the enrolling agent does not
 	// advertise the end_user_auth capability (for example an older agent that
-	// does not set the X-AutoMDM-Capabilities header), the
+	// does not set the X-Automdm-Capabilities header), the
 	// AllowOrbitEndUserAuthBypass config flag decides whether enrollment is
 	// blocked or allowed.
 	newSvc := func(t *testing.T, allowBypass bool) (*mock.DataStore, automdm.Service, context.Context) {

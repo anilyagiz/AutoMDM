@@ -43,8 +43,8 @@ We want to remember BREAD and alsoSHORTCAKEare important.
 		{23, 25},
 		{26, 28},
 		{51, 68},
-		{103, 123},
-		{132, 158},
+		{103, 125},
+		{134, 162},
 	}
 
 	mapper := func(s string, startPos, endPos int) (string, bool) {

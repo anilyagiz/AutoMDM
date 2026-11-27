@@ -43,6 +43,10 @@ org_settings:
     activity_expiry_enabled: false
     activity_expiry_window: 30
     preserve_host_activities_on_reenrollment: true
+  automdm_desktop:
+    alternative_browser_host: musica.alternativa
+    sso_enabled: false
+    transparency_url: https://automdm.com/transparency
   certificate_authorities:
     custom_est_proxy:
     - name: some-est-name
@@ -110,10 +114,6 @@ org_settings:
     historical_data:
       uptime: true
       vulnerabilities: true
-  automdm_desktop:
-    alternative_browser_host: musica.alternativa
-    sso_enabled: false
-    transparency_url: https://automdm.com/transparency
   gitops:
     gitops_mode_enabled: false
     repository_url: https://github.com/anilyagiz/automdm/tree/main/it-and-security
@@ -172,12 +172,12 @@ org_settings:
       metadata_url: # TODO: Add your MDM end user auth metadata URL here
     end_user_license_agreement: ./lib/eula/test.pdf
     volume_purchasing_program:
-    - teams:
+    - location: Fleet Device Management Inc.
+      teams:
       - "💻 Workstations"
       - "💻🐣 Workstations (canary)"
       - "📱🏢 Company-owned mobile devices"
       - "📱🔐 Personal mobile devices"
-      location: Fleet Device Management Inc.
     windows_automatic_enrollment:
       default_team: "💻 Workstations"
     windows_eula: ./lib/eula/terms.md

@@ -5178,7 +5178,6 @@ org_settings:
 	for _, key := range RemovedGitOpsKeys {
 		removed(key.OldPath)
 	}
-	const abmPath = "org_settings.mdm.apple_business[]."
 
 	tests := []struct {
 		name string
@@ -5186,20 +5185,7 @@ org_settings:
 		want []string
 	}{
 		{"team_settings", "name: Workstations\nteam_settings:\n  secrets:\n    - secret: abc\n", []string{removed("team_settings")}},
-		{"ABM and VPP keys", globalConfig(`
-    apple_business:
-      - organization_name: Test Org
-        macos_team: Workstations
-        ios_team: Phones
-        ipados_team: Tablets
-        byod_team: Personal
-    volume_purchasing_program:
-      - location: Earth
-        teams: [Workstations]`), []string{
-			removed(abmPath + "macos_team"), removed(abmPath + "ios_team"), removed(abmPath + "ipados_team"), removed(abmPath + "byod_team"),
-			removed("org_settings.mdm.volume_purchasing_program[].teams"),
-		}},
-		{"new keys are accepted", globalConfig(`
+		{"ABM and VPP team keys are accepted", globalConfig(`
     apple_business:
       - organization_name: Test Org
         macos_team: Workstations
@@ -5225,7 +5211,7 @@ org_settings:
 		})
 	}
 
-	// The file that org_settings references is parsed on its own, so it is checked on its own and the error names it.
+	// The file that org_settings references is parsed on its own; its ABM and VPP team keys are accepted too.
 	t.Run("keys in a file-backed org_settings", func(t *testing.T) {
 		dir := t.TempDir()
 		yamlPath := filepath.Join(dir, "gitops.yml")
@@ -5248,9 +5234,7 @@ mdm:
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "org.yml"), []byte(orgFile), 0o644))
 
 		_, err := GitOpsFromFile(yamlPath, dir, nil, nopLogf)
-		require.Error(t, err)
-		require.ErrorContains(t, err, "org.yml: "+removed(abmPath+"macos_team"))
-		require.ErrorContains(t, err, "org.yml: "+removed("org_settings.mdm.volume_purchasing_program[].teams"))
+		require.NoError(t, err)
 	})
 }
 

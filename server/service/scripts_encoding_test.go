@@ -125,5 +125,5 @@ func TestIsScriptsEncoded(t *testing.T) {
 
 func TestScriptsEncodedHeader(t *testing.T) {
 	// Verify the header constant has the expected value
-	require.Equal(t, "X-AutoMDM-Scripts-Encoded", ScriptsEncodedHeader)
+	require.Equal(t, "X-Automdm-Scripts-Encoded", ScriptsEncodedHeader)
 }

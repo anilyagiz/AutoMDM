@@ -207,8 +207,8 @@ func TestCustomHeadersConfig(t *testing.T) {
 		called = true
 		userAgent = r.UserAgent()
 		clientVersion = r.Header.Get(automdm.HeaderClientVersion)
-		require.Equal(t, "custom", r.Header.Get("X-AutoMDM-Test"))
-		require.Equal(t, "another", r.Header.Get("X-AutoMDM-MoreTest"))
+		require.Equal(t, "custom", r.Header.Get("X-Automdm-Test"))
+		require.Equal(t, "another", r.Header.Get("X-Automdm-MoreTest"))
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer srv.Close()
@@ -218,8 +218,8 @@ func TestCustomHeadersConfig(t *testing.T) {
 		"config", "set",
 		"--config", configFile,
 		"--token", "abcd",
-		"--custom-header", "X-AutoMDM-Test:custom",
-		"--custom-header", "X-AutoMDM-MoreTest:another",
+		"--custom-header", "X-Automdm-Test:custom",
+		"--custom-header", "X-Automdm-MoreTest:another",
 		"--address", srv.URL,
 	})
 	runAppNoChecks([]string{"get", "labels", "--config", configFile}) //nolint:errcheck
@@ -231,8 +231,8 @@ func TestCustomHeadersConfig(t *testing.T) {
 	runAppForTest(t, []string{
 		"config", "set",
 		"--config", configFile,
-		"--custom-header", "X-AutoMDM-Test:custom",
-		"--custom-header", "X-AutoMDM-MoreTest:another",
+		"--custom-header", "X-Automdm-Test:custom",
+		"--custom-header", "X-Automdm-MoreTest:another",
 		"--custom-header", "User-Agent:custom-agent",
 		"--custom-header", automdm.HeaderClientVersion + ":0.0.1",
 	})

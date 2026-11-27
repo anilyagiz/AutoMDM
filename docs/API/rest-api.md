@@ -17057,7 +17057,7 @@ Add a package (.pkg, .msi, .exe, .deb, .rpm, .tar.gz, .ipa) to install on Apple 
 
 Only one of `labels_include_all`, `labels_include_any` or `labels_exclude_any` can be specified. If none are specified, all hosts are targeted.
 
-Add the `X-AutoMDM-Scripts-Encoded: base64` header line to parse `install_script`, `uninstall_script`, `post_install_script`, and `pre_install_query` fields as bas64-encoded rather than as-is.
+Add the `X-Automdm-Scripts-Encoded: base64` header line to parse `install_script`, `uninstall_script`, `post_install_script`, and `pre_install_query` fields as bas64-encoded rather than as-is.
 
 #### Example
 
@@ -17160,7 +17160,7 @@ Only one of `labels_include_all`, `labels_include_any` or `labels_exclude_any` c
 
 > If this software title has a patch policy with `patch_when_closed`, `notify_before_patching`, or `patch_deadline` set to `true` (see [Update team-level policy](#update-team-level-policy)), `pre_install_query` is managed by AutoMDM and can't be set directly.
 
-Add the `X-AutoMDM-Scripts-Encoded: base64` header line to parse `install_script`, `uninstall_script`, `post_install_script`, and `pre_install_query` fields as bas64-encoded rather than as-is.
+Add the `X-Automdm-Scripts-Encoded: base64` header line to parse `install_script`, `uninstall_script`, `post_install_script`, and `pre_install_query` fields as bas64-encoded rather than as-is.
 
 #### Example
 
@@ -17717,7 +17717,7 @@ Add AutoMDM-maintained app so it's available for install.
 
 Only one of `labels_include_all`, `labels_include_any` or `labels_exclude_any` can be specified. If none are specified, all hosts are targeted.
 
-Add the `X-AutoMDM-Scripts-Encoded: base64` header line to parse `install_script`, `uninstall_script`, `post_install_script`, and `pre_install_query` fields as bas64-encoded rather than as-is.
+Add the `X-Automdm-Scripts-Encoded: base64` header line to parse `install_script`, `uninstall_script`, `post_install_script`, and `pre_install_query` fields as bas64-encoded rather than as-is.
 
 To keep this app patched to the latest version, create a [patch policy](#create-team-level-policy) with `patch_software_title_id` set to the `software_title_id` returned below. `automatic_install` and a patch policy can both be added for the same app.
 

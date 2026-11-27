@@ -175,4 +175,4 @@ func orbitClientCapabilitiesForOS(goos string) CapabilityMap {
 }
 
 // CapabilitiesHeader is the header name used to communicate the capabilities.
-const CapabilitiesHeader = "X-AutoMDM-Capabilities"
+const CapabilitiesHeader = "X-Automdm-Capabilities"

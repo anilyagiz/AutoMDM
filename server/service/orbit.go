@@ -841,7 +841,7 @@ func (svc *Service) GetOrbitConfig(ctx context.Context) (automdm.OrbitConfig, er
 			return automdm.OrbitConfig{}, ctxerr.Wrap(ctx, err, "checking Windows host config state")
 		}
 		if state != nil {
-			// The live X-AutoMDM-Capabilities header is only present on this orbit-config request. Persist it (on change) so the OMA-DM
+			// The live X-Automdm-Capabilities header is only present on this orbit-config request. Persist it (on change) so the OMA-DM
 			// management session, which has no such header, can gate poll relaxation on the stored value. Best-effort: a failed write
 			// self-heals on the next poll.
 			syncCapable := false

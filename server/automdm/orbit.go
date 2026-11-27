@@ -79,12 +79,12 @@ type OrbitConfigNotifications struct {
 // reports the orbit config fields that its fallback poll found changed, i.e.
 // that changed without the server nudging it: a comma-separated list of JSON
 // field names, notifications fields prefixed with "notifications.".
-const OrbitConfigFallbackChangesHeader = "X-AutoMDM-Orbit-Config-Fallback-Changes"
+const OrbitConfigFallbackChangesHeader = "X-Automdm-Orbit-Config-Fallback-Changes"
 
 // OsqueryConfigFallbackChangeHeader is the osquery config request header in
 // which orbit, serving osquery its config, reports that the config it fetched
 // on its fallback poll had changed without the server nudging it.
-const OsqueryConfigFallbackChangeHeader = "X-AutoMDM-Osquery-Config-Fallback-Change"
+const OsqueryConfigFallbackChangeHeader = "X-Automdm-Osquery-Config-Fallback-Change"
 
 // IsQuiet reports whether the notifications ask orbit for nothing: no flag is
 // set and no script or software installer is pending. Orbit receivers use the
