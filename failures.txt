@@ -1,0 +1,44 @@
+=== RUN   TestLabelActivities/apply_specs_treats_manual-label_host_no-op_as_no-op
+=== RUN   TestLabelActivities/AddLabelsToHost_emits_edited_label_per_requested_label
+=== RUN   TestLabelActivities/AddLabelsToHost_dedupes_label_names_in_activities
+=== RUN   TestLabelActivities/RemoveLabelsFromHost_emits_edited_label
+--- PASS: TestLabelActivities (0.02s)
+    --- PASS: TestLabelActivities/create_global_label_via_UI_emits_created_label (0.00s)
+    --- PASS: TestLabelActivities/modify_label_via_UI_emits_edited_label_with_team_info (0.00s)
+    --- PASS: TestLabelActivities/delete_label_by_ID_via_UI_emits_deleted_label (0.00s)
+    --- PASS: TestLabelActivities/apply_specs_emits_per-label_created/edited/no-op (0.00s)
+    --- PASS: TestLabelActivities/apply_specs_detects_platform-only_change (0.00s)
+    --- PASS: TestLabelActivities/apply_specs_detects_manual-label_host_membership_change (0.00s)
+    --- PASS: TestLabelActivities/apply_specs_treats_manual-label_host_no-op_as_no-op (0.00s)
+    --- PASS: TestLabelActivities/AddLabelsToHost_emits_edited_label_per_requested_label (0.00s)
+    --- PASS: TestLabelActivities/AddLabelsToHost_dedupes_label_names_in_activities (0.00s)
+    --- PASS: TestLabelActivities/RemoveLabelsFromHost_emits_edited_label (0.00s)
+=== RUN   TestLabelFieldLengthValidation
+=== RUN   TestLabelFieldLengthValidation/NewLabel
+=== RUN   TestLabelFieldLengthValidation/ModifyLabel
+=== RUN   TestLabelFieldLengthValidation/ApplyLabelSpecs
+--- PASS: TestLabelFieldLengthValidation (0.02s)
+    --- PASS: TestLabelFieldLengthValidation/NewLabel (0.00s)
+    --- PASS: TestLabelFieldLengthValidation/ModifyLabel (0.00s)
+    --- PASS: TestLabelFieldLengthValidation/ApplyLabelSpecs (0.00s)
+=== RUN   TestLinuxHostDiskEncryptionStatus
+=== RUN   TestLinuxHostDiskEncryptionStatus/no_key
+=== RUN   TestLinuxHostDiskEncryptionStatus/key_exists
+=== RUN   TestLinuxHostDiskEncryptionStatus/key_exists_&&_client_error
+=== RUN   TestLinuxHostDiskEncryptionStatus/no_key_&&_client_error
+=== RUN   TestLinuxHostDiskEncryptionStatus/key_not_found
+=== RUN   TestLinuxHostDiskEncryptionStatus/unsupported_platform
+--- PASS: TestLinuxHostDiskEncryptionStatus (0.02s)
+    --- PASS: TestLinuxHostDiskEncryptionStatus/no_key (0.00s)
+    --- PASS: TestLinuxHostDiskEncryptionStatus/key_exists (0.00s)
+    --- PASS: TestLinuxHostDiskEncryptionStatus/key_exists_&&_client_error (0.00s)
+    --- PASS: TestLinuxHostDiskEncryptionStatus/no_key_&&_client_error (0.00s)
+    --- PASS: TestLinuxHostDiskEncryptionStatus/key_not_found (0.00s)
+    --- PASS: TestLinuxHostDiskEncryptionStatus/unsupported_platform (0.00s)
+=== RUN   TestLiveQueryRestPeriod
+--- PASS: TestLiveQueryRestPeriod (0.00s)
+=== RUN   TestMailService
+--- FAIL: TestMailService (0.01s)
+panic: Assets may not be used when running AutoMDM as a library [recovered, repanicked]
+
+goroutine 40623 [running]:

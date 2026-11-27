@@ -1,0 +1,4 @@
+--- FAIL: TestMailService (0.01s)
+panic: Assets may not be used when running AutoMDM as a library [recovered, repanicked]
+FAIL	github.com/anilyagiz/automdm/v4/server/service	46.995s
+FAIL
