@@ -1,8 +1,9 @@
-# Build verification for the AutoMDM rebrand.
+# Build and test verification for the AutoMDM rebrand.
 #
-# Runs on pushes to rebrand/** branches and on manual dispatch only. It answers one question:
-# does the renamed tree still type-check and build? Each job publishes its full logs to an
-# orphan branch (ci-logs-rebrand-go, ci-logs-rebrand-js) so they can be read with plain git.
+# Runs on pushes to rebrand/** branches and on manual dispatch only. Each suite runs twice: on the rebranded tree
+# and on the unmodified upstream snapshot (the commit "Import fleetdm/fleet at ..."), so failures that already
+# exist upstream can be told apart from failures the rebrand caused. Every job publishes its logs to an orphan
+# branch named ci-logs-<tree>-<suite> so they can be read with plain git.
 # Delete this workflow and those branches once the rebrand has been merged.
 name: AutoMDM verify
 
@@ -24,43 +25,73 @@ permissions: {}
 
 jobs:
   go:
-    name: Go type-check and build
+    name: Go ${{ matrix.suite }} (${{ matrix.tree }})
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 180
     permissions:
       contents: write # to publish the logs branch
+    strategy:
+      fail-fast: false
+      matrix:
+        tree: [rebrand, upstream]
+        suite: [unit, mysql]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
+
+      - name: Switch to the upstream snapshot
+        if: matrix.tree == 'upstream'
+        run: |
+          sha=$(git log --format=%H --grep='^Import fleetdm/fleet at ' -1)
+          echo "upstream snapshot: $sha"
+          git checkout -q "$sha"
 
       - name: Install Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: go.mod
 
-      - name: Type-check every package, tests included
+      - name: Start MySQL and Redis
         run: |
           mkdir -p /tmp/logs
-          go version | tee /tmp/logs/go-version.log
-          go run ./tools/rebrand/typecheck -o /tmp/logs/typecheck.log ./... > /dev/null 2> /tmp/logs/typecheck.stderr || true
-          tail -5 /tmp/logs/typecheck.stderr
-          tail -1 /tmp/logs/typecheck.log || true
+          docker compose up -d mysql_test mysql_replica_test redis > /tmp/logs/compose.log 2>&1 || { cat /tmp/logs/compose.log; exit 1; }
+          for c in mysql_test mysql_replica_test; do
+            for i in $(seq 1 120); do
+              if docker compose exec -T $c sh -c 'mysql -uroot -p"${MYSQL_ROOT_PASSWORD}" -e "SELECT 1"' > /dev/null 2>&1; then
+                echo "$c ready"; break
+              fi
+              sleep 1
+            done
+          done
 
-      - name: go build
+      - name: Type-check and build
+        if: matrix.suite == 'unit'
         run: |
+          go version | tee /tmp/logs/go-version.log
+          if [ -d tools/rebrand/typecheck ]; then
+            go run ./tools/rebrand/typecheck -o /tmp/logs/typecheck.log ./... > /dev/null 2> /tmp/logs/typecheck.stderr || true
+            tail -1 /tmp/logs/typecheck.log || true
+          fi
           set +e
           go build -gcflags=-e ./... > /tmp/logs/build.log 2>&1
           echo "exit=$?" | tee -a /tmp/logs/build.log
-          tail -40 /tmp/logs/build.log
 
-      - name: Unit tests that need no database
-        if: ${{ hashFiles('tools/rebrand/ci-go-tests.txt') != '' }}
+      - name: Unit tests
+        if: matrix.suite == 'unit'
         run: |
           set +e
-          pkgs=$(grep -v '^#' tools/rebrand/ci-go-tests.txt | tr '\n' ' ')
-          go test -count=1 -timeout 45m $pkgs > /tmp/logs/test.log 2>&1
+          go test -count=1 -timeout 120m ./... > /tmp/logs/test.log 2>&1
+          echo "exit=$?" | tee -a /tmp/logs/test.log
+          grep -E "^(FAIL|--- FAIL|panic)" /tmp/logs/test.log | head -100
+
+      - name: MySQL tests
+        if: matrix.suite == 'mysql'
+        run: |
+          set +e
+          MYSQL_TEST=1 go test -count=1 -timeout 150m ./server/datastore/mysql/... > /tmp/logs/test.log 2>&1
           echo "exit=$?" | tee -a /tmp/logs/test.log
           grep -E "^(FAIL|--- FAIL|panic)" /tmp/logs/test.log | head -100
 
@@ -68,30 +99,43 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
+          BRANCH: ci-logs-${{ matrix.tree }}-${{ matrix.suite }}
         run: |
+          mkdir -p /tmp/logs
+          git rev-parse HEAD > /tmp/logs/SHA
+          echo "$GITHUB_SHA" > /tmp/logs/TRIGGER_SHA
+          date -u +%FT%TZ > /tmp/logs/FINISHED
           cd /tmp/logs
-          echo "$GITHUB_SHA" > SHA
-          date -u +%FT%TZ > FINISHED
           git init -q
-          git checkout -q -b ci-logs-rebrand-go
+          git checkout -q -b "$BRANCH"
           git add -A
-          git -c user.name="automdm-verify" -c user.email="noreply@github.com" commit -q -m "verify logs (go) for $GITHUB_SHA"
-          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" ci-logs-rebrand-go
+          git -c user.name="automdm-verify" -c user.email="noreply@github.com" commit -q -m "verify logs for $GITHUB_SHA"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$BRANCH"
 
       - name: Fail when the build failed
+        if: matrix.tree == 'rebrand' && matrix.suite == 'unit'
         run: grep -q '^exit=0$' /tmp/logs/build.log
 
   js:
-    name: Front end type-check and bundle
+    name: Front end (${{ matrix.tree }})
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     permissions:
       contents: write # to publish the logs branch
+    strategy:
+      fail-fast: false
+      matrix:
+        tree: [rebrand, upstream]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
+
+      - name: Switch to the upstream snapshot
+        if: matrix.tree == 'upstream'
+        run: git checkout -q "$(git log --format=%H --grep='^Import fleetdm/fleet at ' -1)"
 
       - name: Install Node
         uses: actions/setup-node@5e21ff4d9bc1a8cf6de233a3057d20ec6b3fb69d # v3.8.1
@@ -103,9 +147,7 @@ jobs:
           mkdir -p /tmp/logs
           node --version | tee /tmp/logs/node-version.log
           yarn install --frozen-lockfile --network-timeout 300000 > /tmp/logs/yarn-install.log 2>&1 || { tail -30 /tmp/logs/yarn-install.log; exit 1; }
-
-      - name: Generate the osquery SQL parser
-        run: yarn generate:osquery-sql-parser
+          yarn generate:osquery-sql-parser > /tmp/logs/parser.log 2>&1
 
       - name: tsc
         run: |
@@ -122,28 +164,31 @@ jobs:
           grep -iE 'error|not found|cannot' /tmp/logs/webpack.log | head -60
 
       - name: Jest tests
-        if: ${{ hashFiles('tools/rebrand/ci-js-tests.txt') != '' }}
         run: |
           set +e
-          yarn -s jest --config ./frontend/test/jest.config.js --ci $(grep -v '^#' tools/rebrand/ci-js-tests.txt | tr '\n' ' ') > /tmp/logs/jest.log 2>&1
+          yarn -s jest --config ./frontend/test/jest.config.js --ci --silent > /tmp/logs/jest.log 2>&1
           echo "exit=$?" | tee -a /tmp/logs/jest.log
-          tail -60 /tmp/logs/jest.log
+          grep -E "^(FAIL|Tests:|Test Suites:)" /tmp/logs/jest.log | head -80
 
       - name: Publish logs
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
+          BRANCH: ci-logs-${{ matrix.tree }}-js
         run: |
+          mkdir -p /tmp/logs
+          git rev-parse HEAD > /tmp/logs/SHA
+          echo "$GITHUB_SHA" > /tmp/logs/TRIGGER_SHA
+          date -u +%FT%TZ > /tmp/logs/FINISHED
           cd /tmp/logs
-          echo "$GITHUB_SHA" > SHA
-          date -u +%FT%TZ > FINISHED
           git init -q
-          git checkout -q -b ci-logs-rebrand-js
+          git checkout -q -b "$BRANCH"
           git add -A
-          git -c user.name="automdm-verify" -c user.email="noreply@github.com" commit -q -m "verify logs (js) for $GITHUB_SHA"
-          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" ci-logs-rebrand-js
+          git -c user.name="automdm-verify" -c user.email="noreply@github.com" commit -q -m "verify logs for $GITHUB_SHA"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$BRANCH"
 
       - name: Fail when tsc or webpack failed
+        if: matrix.tree == 'rebrand'
         run: |
           grep -q '^exit=0$' /tmp/logs/tsc.log
           grep -q '^exit=0$' /tmp/logs/webpack.log

@@ -1,2 +1,0 @@
-# Jest arguments for .github/workflows/automdm-verify.yml (empty line = the whole suite).
---silent
